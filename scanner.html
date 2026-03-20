@@ -156,6 +156,19 @@
       color: #1f3b73;
       word-break: break-word;
     }
+
+    .manual-box {
+      margin-top: 14px;
+    }
+
+    .manual-box input {
+      width: 100%;
+      max-width: 420px;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
@@ -211,6 +224,11 @@
       <h2>Likely Part Number</h2>
       <div class="result-box">
         <div id="partNumberOutput" class="part-output">No part number detected yet.</div>
+
+        <div class="manual-box">
+          <div class="small-note">Manual correction:</div>
+          <input type="text" id="manualPartNumber" placeholder="Edit detected part number here if needed" />
+        </div>
       </div>
     </div>
   </div>
@@ -277,6 +295,7 @@
       const processedPreview = document.getElementById("processedPreview");
       const ocrText = document.getElementById("ocrText");
       const partNumberOutput = document.getElementById("partNumberOutput");
+      const manualPartNumber = document.getElementById("manualPartNumber");
       const status = document.getElementById("status");
 
       if (!video.srcObject) {
@@ -335,6 +354,7 @@
 
       ocrText.value = "";
       partNumberOutput.textContent = "No part number detected yet.";
+      manualPartNumber.value = "";
 
       status.className = "message";
       status.textContent = "Frame captured and cropped successfully.";
@@ -344,6 +364,7 @@
       const processedPreview = document.getElementById("processedPreview");
       const ocrText = document.getElementById("ocrText");
       const partNumberOutput = document.getElementById("partNumberOutput");
+      const manualPartNumber = document.getElementById("manualPartNumber");
       const status = document.getElementById("status");
 
       if (!processedPreview.src) {
@@ -354,6 +375,7 @@
 
       ocrText.value = "";
       partNumberOutput.textContent = "Searching...";
+      manualPartNumber.value = "";
       status.className = "message";
       status.textContent = "Running OCR... please wait.";
 
@@ -371,8 +393,10 @@
         ocrText.value = text;
 
         const partNumber = findLikelyPartNumber(text);
+
         if (partNumber) {
           partNumberOutput.textContent = partNumber;
+          manualPartNumber.value = partNumber;
         } else {
           partNumberOutput.textContent = "No reliable PN field detected. Adjust label and scan again.";
         }
@@ -385,21 +409,71 @@
       }
     }
 
+    function normalizeOCRText(text) {
+      return text
+        .toUpperCase()
+        .replace(/[|]/g, "1")
+        .replace(/[\.]/g, "-")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
     function findLikelyPartNumber(text) {
-      const upperText = text.toUpperCase();
-      const lines = upperText
+      const normalizedText = normalizeOCRText(text);
+      const lines = normalizedText
         .split(/\r?\n/)
         .map(line => line.trim())
         .filter(line => line.length > 0);
 
       for (const line of lines) {
-        const pnMatch = line.match(/\bPN\b[\s:|]*([A-Z0-9\-]+)/);
+        const pnMatch = line.match(/\bPN\b[\s:\-]*([A-Z0-9\-]+)/);
         if (pnMatch && pnMatch[1]) {
-          return pnMatch[1].trim();
+          return cleanupPartNumber(pnMatch[1]);
+        }
+      }
+
+      for (const line of lines) {
+        const shapedMatch = line.match(/\b\d{3}[- ]?\d{4,6}[- ]?\d[- ]?[A-Z]{2}\b/);
+        if (shapedMatch) {
+          return cleanupPartNumber(shapedMatch[0]);
+        }
+      }
+
+      for (const line of lines) {
+        const tokens = line.split(/[^A-Z0-9\-]+/).filter(Boolean);
+
+        for (const token of tokens) {
+          const cleaned = cleanupPartNumber(token);
+
+          if (cleaned.length < 8) continue;
+          if (!/\d/.test(cleaned)) continue;
+          if (!/[A-Z]/.test(cleaned)) continue;
+          if (!cleaned.includes("-")) continue;
+
+          return cleaned;
         }
       }
 
       return "";
+    }
+
+    function cleanupPartNumber(value) {
+      let v = value.toUpperCase();
+
+      v = v.replace(/\./g, "-");
+      v = v.replace(/\s+/g, "");
+      v = v.replace(/[^A-Z0-9\-]/g, "");
+      v = v.replace(/-+/g, "-");
+
+      if (/^\d{3}\d{5,6}\d[A-Z]{2}$/.test(v)) {
+        v = v.replace(/^(\d{3})(\d{5,6})(\d)([A-Z]{2})$/, "$1-$2-$3-$4");
+      }
+
+      if (/^\d{3}-\d{4,6}-\d[A-Z]{2}$/.test(v)) {
+        v = v.replace(/^(\d{3}-\d{4,6}-\d)([A-Z]{2})$/, "$1-$2");
+      }
+
+      return v;
     }
   </script>
 </body>
