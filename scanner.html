@@ -24,284 +24,50 @@
       --sans: 'DM Sans', sans-serif;
     }
 
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 32px 16px;
-    }
-
-    .container {
-      max-width: 960px;
-      margin: 0 auto;
-    }
-
-    header {
-      margin-bottom: 32px;
-      display: flex;
-      align-items: flex-end;
-      gap: 16px;
-    }
-
-    header h1 {
-      font-family: var(--mono);
-      font-size: 22px;
-      color: var(--accent);
-      letter-spacing: -0.5px;
-    }
-
-    header span {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 2px;
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 24px;
-      margin-bottom: 20px;
-    }
-
-    .card-title {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: var(--muted);
-      margin-bottom: 16px;
-    }
-
-    /* Camera */
-    .video-wrap {
-      position: relative;
-      width: 100%;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #000;
-      aspect-ratio: 16/9;
-    }
-
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .scan-overlay {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-    }
-
-    /* Dark overlay via SVG clipPath */
-    .scan-box-border {
-      position: absolute;
-      left: 26%; top: 37%;
-      width: 50%; height: 18%;
-      border: 2px solid var(--accent);
-      border-radius: 6px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
-    }
-
-    .scan-tag {
-      position: absolute;
-      left: 26%;
-      top: calc(37% - 30px);
-      background: var(--accent);
-      color: #052916;
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 500;
-      padding: 4px 10px;
-      border-radius: 5px;
-    }
-
-    /* Corner accents */
-    .corner {
-      position: absolute;
-      width: 14px; height: 14px;
-      border-color: var(--accent);
-      border-style: solid;
-    }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .container { max-width: 960px; margin: 0 auto; }
+    header { margin-bottom: 32px; display: flex; align-items: flex-end; gap: 16px; }
+    header h1 { font-family: var(--mono); font-size: 22px; color: var(--accent); letter-spacing: -0.5px; }
+    header span { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+    .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; }
+    .video-wrap { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 16/9; }
+    video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .scan-box-border { position: absolute; left: 26%; top: 37%; width: 50%; height: 18%; border: 2px solid var(--accent); border-radius: 6px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); }
+    .scan-tag { position: absolute; left: 26%; top: calc(37% - 30px); background: var(--accent); color: #052916; font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 5px; }
+    .corner { position: absolute; width: 14px; height: 14px; border-color: var(--accent); border-style: solid; }
     .corner.tl { top: 37%; left: 26%; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
     .corner.tr { top: 37%; left: calc(26% + 50%); border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; transform: translateX(-100%); }
     .corner.bl { top: calc(37% + 18%); left: 26%; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; transform: translateY(-100%); }
     .corner.br { top: calc(37% + 18%); left: calc(26% + 50%); border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; transform: translate(-100%, -100%); }
-
-    /* Buttons */
-    .btn-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 18px;
-    }
-
-    button {
-      font-family: var(--sans);
-      font-size: 13px;
-      font-weight: 600;
-      padding: 9px 18px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
-    }
-
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    button { font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
     button:active { transform: scale(0.97); }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #052916;
-    }
-
+    .btn-primary { background: var(--accent); color: #052916; }
     .btn-primary:hover { opacity: 0.88; }
-
-    .btn-secondary {
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
     .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-
-    .btn-danger {
-      background: transparent;
-      color: var(--error);
-      border: 1px solid #3a2020;
-    }
-
+    .btn-danger { background: transparent; color: var(--error); border: 1px solid #3a2020; }
     .btn-danger:hover { background: #2a1a1a; }
-
-    /* Status */
-    .status {
-      margin-top: 14px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-family: var(--mono);
-      border: 1px solid var(--border);
-      background: var(--surface2);
-      color: var(--muted);
-      transition: all 0.2s;
-    }
-
+    .status { margin-top: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-family: var(--mono); border: 1px solid var(--border); background: var(--surface2); color: var(--muted); transition: all 0.2s; }
     .status.ok { border-color: #1a3a28; background: #0e2318; color: var(--accent); }
     .status.err { border-color: #3a2020; background: var(--error-bg); color: var(--error); }
     .status.loading { border-color: #2a3045; color: #93c5fd; }
-
-    /* Grid */
-    .grid2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 680px) { .grid2 { grid-template-columns: 1fr; } }
-
-    .preview-label {
-      font-size: 11px;
-      color: var(--muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 8px;
-    }
-
-    img.preview {
-      width: 100%;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #000;
-      display: block;
-      min-height: 80px;
-      object-fit: contain;
-    }
-
+    .preview-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    img.preview { width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #000; display: block; min-height: 80px; object-fit: contain; }
     canvas { display: none; }
-
-    /* Result */
-    .result-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px 24px;
-    }
-
-    .result-label {
-      font-size: 11px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      margin-bottom: 10px;
-    }
-
-    .part-number {
-      font-family: var(--mono);
-      font-size: 30px;
-      font-weight: 500;
-      color: var(--accent);
-      letter-spacing: 2px;
-      word-break: break-all;
-      min-height: 40px;
-    }
-
+    .result-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+    .result-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+    .part-number { font-family: var(--mono); font-size: 30px; font-weight: 500; color: var(--accent); letter-spacing: 2px; word-break: break-all; min-height: 40px; }
     .part-number.empty { color: var(--muted); font-size: 16px; }
-
-    .manual-row {
-      margin-top: 16px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .manual-row input {
-      flex: 1;
-      min-width: 200px;
-      padding: 9px 12px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 14px;
-    }
-
-    .manual-row input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    /* OCR raw */
-    .ocr-raw {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--muted);
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      min-height: 60px;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-
-    /* Spinner */
+    .manual-row { margin-top: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .manual-row input { flex: 1; min-width: 200px; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 14px; }
+    .manual-row input:focus { outline: none; border-color: var(--accent); }
+    .ocr-raw { font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-height: 60px; white-space: pre-wrap; word-break: break-all; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner {
-      display: inline-block;
-      width: 14px; height: 14px;
-      border: 2px solid #2a3880;
-      border-top-color: #93c5fd;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #2a3880; border-top-color: #93c5fd; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
   </style>
 </head>
 <body>
@@ -313,7 +79,7 @@
   </header>
 
   <!-- API Key Card -->
-  <div class="card" id="apiKeyCard">
+  <div class="card">
     <div class="card-title">Anthropic API Key</div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <input type="password" id="apiKeyInput"
@@ -323,7 +89,7 @@
       <button class="btn-primary" onclick="saveKey()">Save Key</button>
     </div>
     <div id="keyStatus" style="margin-top:10px;font-size:12px;color:var(--muted);font-family:var(--mono);">
-      Key not set. Enter your key from <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--accent)">console.anthropic.com/keys</a>
+      Key not set. Get yours at <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--accent)">console.anthropic.com/keys</a>
     </div>
   </div>
 
@@ -341,7 +107,7 @@
     </div>
     <div class="btn-row">
       <button class="btn-primary" onclick="startCamera()">Start Camera</button>
-      <button class="btn-secondary" onclick="captureAndExtract()">⚡ Scan &amp; Extract</button>
+      <button class="btn-secondary" onclick="captureAndExtract()">⚡ Scan & Extract</button>
       <button class="btn-danger" onclick="stopCamera()">Stop</button>
     </div>
     <div id="status" class="status">Camera not started.</div>
@@ -373,7 +139,6 @@
         <button class="btn-secondary" onclick="copyPN()">Copy</button>
       </div>
     </div>
-
     <div style="margin-top:20px">
       <div class="preview-label">Raw Claude Response</div>
       <div id="ocrRaw" class="ocr-raw">No scan yet.</div>
@@ -382,7 +147,6 @@
 
 </div>
 
-<!-- Hidden canvases -->
 <canvas id="canvas"></canvas>
 <canvas id="cropCanvas"></canvas>
 
@@ -413,22 +177,15 @@
 
   const SCAN_REGION = { x: 0.26, y: 0.37, w: 0.50, h: 0.18 };
 
-  // ── Camera ──────────────────────────────────────────────────────────────────
-
   async function startCamera() {
-    const status = document.getElementById("status");
-    const video = document.getElementById("video");
-
     try {
       if (currentStream) stopCamera();
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false
       });
-
       currentStream = stream;
-      video.srcObject = stream;
+      document.getElementById("video").srcObject = stream;
       setStatus("Camera started. Align the PN row inside the green box, then press Scan & Extract.", "ok");
     } catch (err) {
       setStatus("Could not access camera: " + err.message, "err");
@@ -436,48 +193,36 @@
   }
 
   function stopCamera() {
-    const video = document.getElementById("video");
-    if (currentStream) {
-      currentStream.getTracks().forEach(t => t.stop());
-      currentStream = null;
-    }
-    video.srcObject = null;
+    if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
+    document.getElementById("video").srcObject = null;
     setStatus("Camera stopped.", "");
   }
 
-  // ── Capture + Extract (single button) ───────────────────────────────────────
-
   async function captureAndExtract() {
-    const video  = document.getElementById("video");
+    const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
-    const crop   = document.getElementById("cropCanvas");
+    const crop = document.getElementById("cropCanvas");
 
     if (!video.srcObject) { setStatus("Start the camera first.", "err"); return; }
-
     const W = video.videoWidth, H = video.videoHeight;
     if (!W || !H) { setStatus("Camera not ready yet — wait a moment.", "err"); return; }
 
-    // 1. Full frame
     canvas.width = W; canvas.height = H;
     canvas.getContext("2d").drawImage(video, 0, 0, W, H);
     document.getElementById("snapshot").src = canvas.toDataURL("image/jpeg", 0.92);
 
-    // 2. Crop to full scan-box region (no inner sub-crop)
     const bx = Math.floor(W * SCAN_REGION.x);
     const by = Math.floor(H * SCAN_REGION.y);
     const bw = Math.floor(W * SCAN_REGION.w);
     const bh = Math.floor(H * SCAN_REGION.h);
 
-    // Scale up 3× for better Claude Vision accuracy
     const scale = 3;
-    crop.width  = bw * scale;
-    crop.height = bh * scale;
+    crop.width = bw * scale; crop.height = bh * scale;
     const cctx = crop.getContext("2d");
     cctx.imageSmoothingEnabled = true;
     cctx.imageSmoothingQuality = "high";
     cctx.drawImage(canvas, bx, by, bw, bh, 0, 0, crop.width, crop.height);
 
-    // Light contrast boost — gentler than before
     const img = cctx.getImageData(0, 0, crop.width, crop.height);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
@@ -489,38 +234,26 @@
 
     const cropDataUrl = crop.toDataURL("image/jpeg", 0.95);
     document.getElementById("cropPreview").src = cropDataUrl;
-
-    // 3. Send to Claude Vision
     await extractWithClaude(cropDataUrl);
   }
 
-  // ── Claude Vision ────────────────────────────────────────────────────────────
-
   async function extractWithClaude(dataUrl) {
+    if (!API_KEY) { setStatus("⚠ Enter and save your Anthropic API key first.", "err"); return; }
+
     setStatus('<span class="spinner"></span>Sending to Claude Vision…', "loading");
     document.getElementById("partNumberOutput").textContent = "…";
     document.getElementById("ocrRaw").textContent = "Waiting for Claude…";
 
-    // Strip the data URL prefix to get raw base64
     const base64 = dataUrl.split(",")[1];
-
     const prompt = `You are a part-number extraction assistant for industrial labels.
-
 The image shows a cropped label region. Your ONLY job is to find and return the part number.
-
 The part number format is exactly: NNN-NNNNN-N-ND
 Example: 296-11602-1-ND
-
 Rules:
 - Return ONLY the part number string, nothing else. No explanation, no punctuation, no quotes.
 - If you see something like "PN 296-11602-1-ND" or "P/N: 296-11602-1-ND", return only "296-11602-1-ND".
 - The last two characters are always "ND".
 - If you cannot find a part number, return exactly: NOT_FOUND`;
-
-    if (!API_KEY) {
-      setStatus("⚠ Enter and save your Anthropic API key first.", "err");
-      return;
-    }
 
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -534,21 +267,14 @@ Rules:
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 100,
-          messages: [{
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: "image/jpeg", data: base64 }
-              },
-              { type: "text", text: prompt }
-            ]
-          }]
+          messages: [{ role: "user", content: [
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+            { type: "text", text: prompt }
+          ]}]
         })
       });
 
       const data = await response.json();
-
       if (!response.ok) {
         const errMsg = data?.error?.message || JSON.stringify(data);
         setStatus("API error: " + errMsg, "err");
@@ -571,14 +297,11 @@ Rules:
         document.getElementById("manualPartNumber").value = raw;
         setStatus("✓ Part number extracted: " + raw, "ok");
       }
-
     } catch (err) {
       setStatus("Network error: " + err.message, "err");
       document.getElementById("ocrRaw").textContent = err.message;
     }
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   function setStatus(msg, type) {
     const el = document.getElementById("status");
@@ -588,9 +311,7 @@ Rules:
 
   function copyPN() {
     const val = document.getElementById("manualPartNumber").value || document.getElementById("partNumberOutput").textContent;
-    if (val && val !== "—") {
-      navigator.clipboard.writeText(val).then(() => setStatus("Copied: " + val, "ok"));
-    }
+    if (val && val !== "—") navigator.clipboard.writeText(val).then(() => setStatus("Copied: " + val, "ok"));
   }
 </script>
 </body>
