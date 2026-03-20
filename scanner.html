@@ -77,11 +77,9 @@
     .inv-panel { border-radius: 10px; padding: 16px; margin-top: 4px; }
     .inv-panel.found    { border: 1px solid #0a7a3e; background: #050f09; }
     .inv-panel.notfound { border: 1px solid #1a3060; background: #050a18; }
-    .inv-panel.nosheet  { border: 1px solid var(--border); background: var(--bg); }
     .inv-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
     .inv-title.found    { color: var(--accent); }
     .inv-title.notfound { color: var(--info); }
-    .inv-title.nosheet  { color: var(--muted); }
     .inv-info { font-family: var(--mono); font-size: 13px; color: var(--text); margin-bottom: 14px; line-height: 1.9; }
     .qty-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
     .qty-row input { width: 90px; }
@@ -110,15 +108,6 @@
       <div>
         <div class="field-label">Anthropic API Key</div>
         <input type="password" id="anthropicKey" placeholder="sk-ant-..." />
-      </div>
-      <div>
-        <div class="field-label">Google Sheets API Key</div>
-        <input type="password" id="sheetsApiKey" placeholder="AIza..." />
-      </div>
-      <div>
-        <div class="field-label">Spreadsheet ID</div>
-        <input type="text" id="spreadsheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
-        <div class="hint">From your sheet URL: /spreadsheets/d/<b style="color:var(--text)">THIS_PART</b>/edit</div>
       </div>
       <div>
         <div class="field-label">Sheet Tab Name</div>
@@ -163,7 +152,6 @@
   <div class="card">
     <div class="card-title">Scan Result</div>
     <div class="result-panel">
-
       <div class="result-top">
         <div>
           <div class="preview-label">Manufacturer Part Number</div>
@@ -175,7 +163,6 @@
           <div id="dateDisplay" style="font-family:var(--mono);font-size:13px;color:var(--muted)">—</div>
         </div>
       </div>
-
       <div class="result-fields">
         <div>
           <div class="field-label">Supplier Order PN (auto-detected)</div>
@@ -186,10 +173,7 @@
           <input type="text" id="descField" placeholder="e.g. IC GATE AND 1CH 2-INP SC70-5" />
         </div>
       </div>
-
-      <!-- Action panel shown after sheet lookup -->
       <div id="invPanel" style="display:none"></div>
-
     </div>
   </div>
 
@@ -205,40 +189,28 @@
 <canvas id="cropCanvas"></canvas>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────────
+// ── Config ─────────────────────────────────────────────────────────────────────
+// Your Google Apps Script Web App URL — already set
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwA8mFRt2wOHs3YrFd1sfymYbwP3byhbUp93_3theykhAmIpOX_2iCfVHSmL9NFLStQ/exec";
+
 let currentStream = null;
 let config = {};
 let sessionHistory = [];
 let currentScan = null;
 
-// Sheet columns (1-indexed): A=PartNumber B=Supplier C=MfrPN D=Description E=Quantity F=LastUpdated
-const COL_PART    = "A"; // supplier order PN — used as primary key
-const COL_SUPPLIER= "B";
-const COL_MFRPN   = "C"; // manufacturer PN — what we search by
-const COL_DESC    = "D";
-const COL_QTY     = "E";
-const COL_DATE    = "F";
-const SEARCH_COL  = "C"; // search by manufacturer PN
-const SEARCH_IDX  = 2;   // 0-indexed position of MfrPN in row array
-
 const SCAN_REGION = { x: 0.15, y: 0.25, w: 0.70, h: 0.50 };
 
-// ── Config ─────────────────────────────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
   const saved = JSON.parse(sessionStorage.getItem("inv_config") || "{}");
-  if (saved.anthropicKey)  document.getElementById("anthropicKey").value  = saved.anthropicKey;
-  if (saved.sheetsApiKey)  document.getElementById("sheetsApiKey").value  = saved.sheetsApiKey;
-  if (saved.spreadsheetId) document.getElementById("spreadsheetId").value = saved.spreadsheetId;
-  if (saved.sheetName)     document.getElementById("sheetName").value     = saved.sheetName;
-  if (saved.anthropicKey)  { config = saved; setConfigStatus("✓ Config loaded from session.", "var(--accent)"); }
+  if (saved.anthropicKey) document.getElementById("anthropicKey").value = saved.anthropicKey;
+  if (saved.sheetName)    document.getElementById("sheetName").value    = saved.sheetName;
+  if (saved.anthropicKey) { config = saved; setConfigStatus("✓ Config loaded from session.", "var(--accent)"); }
 });
 
 function saveConfig() {
   config = {
-    anthropicKey:  document.getElementById("anthropicKey").value.trim(),
-    sheetsApiKey:  document.getElementById("sheetsApiKey").value.trim(),
-    spreadsheetId: document.getElementById("spreadsheetId").value.trim(),
-    sheetName:     document.getElementById("sheetName").value.trim() || "Inventory"
+    anthropicKey: document.getElementById("anthropicKey").value.trim(),
+    sheetName:    document.getElementById("sheetName").value.trim() || "Inventory"
   };
   if (!config.anthropicKey.startsWith("sk-ant-")) {
     setConfigStatus("⚠ Anthropic key should start with sk-ant-", "var(--error)"); return;
@@ -284,14 +256,14 @@ async function captureAndExtract() {
 
   if (!video.srcObject) { setCamStatus("Start the camera first.", "err"); return; }
   const W = video.videoWidth, H = video.videoHeight;
-  if (!W || !H)          { setCamStatus("Camera not ready — wait a moment.", "err"); return; }
+  if (!W || !H) { setCamStatus("Camera not ready — wait a moment.", "err"); return; }
 
-  // Full frame snapshot
+  // Full frame
   canvas.width = W; canvas.height = H;
   canvas.getContext("2d").drawImage(video, 0, 0, W, H);
   document.getElementById("snapshot").src = canvas.toDataURL("image/jpeg", 0.92);
 
-  // Crop scan region & scale up 3×
+  // Crop & scale up 3×
   const bx = Math.floor(W * SCAN_REGION.x), by = Math.floor(H * SCAN_REGION.y);
   const bw = Math.floor(W * SCAN_REGION.w), bh = Math.floor(H * SCAN_REGION.h);
   crop.width = bw * 3; crop.height = bh * 3;
@@ -328,12 +300,11 @@ async function extractWithClaude(dataUrl) {
   setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…', "loading");
 
   const base64 = dataUrl.split(",")[1];
-
   const prompt = `You are an electronics component label reader. Look at this label carefully.
 
 Return ONLY a valid JSON object with no markdown, no explanation, no backticks:
 {
-  "mfrPartNumber": "the manufacturer part number (e.g. SN74LVC1G08DCKR, CL10A105KA8N). This is usually labeled MFR PN, Mfr#, or appears next to the manufacturer name.",
+  "mfrPartNumber": "the manufacturer part number (e.g. SN74LVC1G08DCKR, CL10A105KA8N). Usually labeled MFR PN, Mfr#, or next to the manufacturer name.",
   "supplierPartNumber": "the supplier order part number (e.g. 296-11602-1-ND for DigiKey, 595-SN74LVC1G08DCKR for Mouser). Usually labeled PN or P/N.",
   "supplier": "DigiKey or Mouser or Octopart or Unknown",
   "description": "component description if visible, else empty string"
@@ -362,12 +333,9 @@ Return only raw JSON.`;
     });
 
     const data = await resp.json();
-    if (!resp.ok) {
-      setCamStatus("API error: " + (data?.error?.message || "Unknown error"), "err"); return;
-    }
+    if (!resp.ok) { setCamStatus("API error: " + (data?.error?.message || "Unknown"), "err"); return; }
 
     const raw = (data.content || []).map(b => b.text || "").join("").trim();
-
     let parsed;
     try { parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()); }
     catch { setCamStatus("Could not parse Claude response. Try scanning again.", "err"); return; }
@@ -403,50 +371,33 @@ function showSupplierBadge(supplier) {
     `<span class="supplier-badge ${cls}">${supplier || "Unknown"}</span>`;
 }
 
-// ── Google Sheets Lookup ───────────────────────────────────────────────────────
-// Sheet columns: A=PartNumber(supplier PN), B=Supplier, C=MfrPN, D=Description, E=Quantity, F=LastUpdated
+// ── Apps Script: Read Sheet ────────────────────────────────────────────────────
 async function lookupInSheet(mfrPartNumber) {
-  if (!config.sheetsApiKey || !config.spreadsheetId) {
-    showInvPanel(null, -1);
-    setCamStatus("✓ Label read. Add your Sheets API key to sync inventory.", "warn");
-    return;
-  }
-
-  const range = encodeURIComponent(`${config.sheetName}!A:F`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}?key=${config.sheetsApiKey}`;
-
+  setCamStatus('<span class="spinner"></span>Checking inventory sheet…', "loading");
   try {
+    const url = `${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(config.sheetName)}`;
     const resp = await fetch(url);
-    const data = await resp.json();
+    const rows = await resp.json();
 
-    if (!resp.ok) {
-      const msg = data?.error?.message || "Check your Sheets API key and Spreadsheet ID";
-      setCamStatus("Sheets error: " + msg, "err");
-      showInvPanel(null, -1); return;
-    }
-
-    const rows = data.values || [];
-    // Row 0 is header, search from row 1
-    // Column C (index 2) = MfrPN
+    // Column C (index 2) = MfrPN — search from row 1 (skip header)
     let foundRow = null, foundRowIndex = -1;
     for (let i = 1; i < rows.length; i++) {
-      const cellMfrPn = (rows[i][2] || "").trim().toUpperCase();
-      if (cellMfrPn === mfrPartNumber.trim().toUpperCase()) {
+      if ((rows[i][2] || "").trim().toUpperCase() === mfrPartNumber.trim().toUpperCase()) {
         foundRow = rows[i];
-        foundRowIndex = i + 1; // 1-indexed for Sheets API
+        foundRowIndex = i + 1; // 1-indexed
         break;
       }
     }
 
     showInvPanel(foundRow, foundRowIndex);
     if (foundRow) {
-      setCamStatus(`✓ Found in sheet (row ${foundRowIndex}). Current stock: ${foundRow[4] || 0} units.`, "ok");
+      setCamStatus(`✓ Found in inventory (row ${foundRowIndex}). Current stock: ${foundRow[4] || 0} units.`, "ok");
     } else {
-      setCamStatus(`✓ Label read. "${mfrPartNumber}" not in inventory yet — add it below.`, "warn");
+      setCamStatus(`"${mfrPartNumber}" not in inventory yet — add it below.`, "warn");
     }
 
   } catch (err) {
-    setCamStatus("Sheets lookup failed: " + err.message, "err");
+    setCamStatus("Could not reach Google Sheet: " + err.message, "err");
     showInvPanel(null, -1);
   }
 }
@@ -455,14 +406,6 @@ async function lookupInSheet(mfrPartNumber) {
 function showInvPanel(existingRow, rowIndex) {
   const panel = document.getElementById("invPanel");
   panel.style.display = "block";
-
-  if (!config.sheetsApiKey || !config.spreadsheetId) {
-    panel.className = "inv-panel nosheet";
-    panel.innerHTML = `
-      <div class="inv-title nosheet">Google Sheets Not Configured</div>
-      <div class="inv-info" style="color:var(--muted)">Add your Sheets API key and Spreadsheet ID in the config above to enable inventory sync.</div>`;
-    return;
-  }
 
   if (existingRow) {
     const currentQty = parseInt(existingRow[4] || "0");
@@ -497,28 +440,25 @@ function showInvPanel(existingRow, rowIndex) {
   }
 }
 
-// ── Add New Row ────────────────────────────────────────────────────────────────
+// ── Apps Script: Add New Row ───────────────────────────────────────────────────
 async function addNewRow() {
   if (!currentScan) return;
-  const qty     = parseInt(document.getElementById("qtyInput").value) || 1;
-  const desc    = document.getElementById("descField").value.trim();
-  const suppPn  = document.getElementById("supplierPnField").value.trim();
+  const qty    = parseInt(document.getElementById("qtyInput").value) || 1;
+  const desc   = document.getElementById("descField").value.trim();
+  const suppPn = document.getElementById("supplierPnField").value.trim();
 
-  // Row: PartNumber(supplier PN) | Supplier | MfrPN | Description | Quantity | LastUpdated
+  // Row: SupplierPN | Supplier | MfrPN | Description | Quantity | LastUpdated
   const row = [suppPn, currentScan.supplier, currentScan.mfrPartNumber, desc, qty, currentScan.date];
-
-  const range = encodeURIComponent(`${config.sheetName}!A:F`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&key=${config.sheetsApiKey}`;
 
   try {
     setCamStatus('<span class="spinner"></span>Adding to Google Sheets…', "loading");
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ values: [row] })
-    });
-    const data = await resp.json();
-    if (!resp.ok) { setCamStatus("Sheets error: " + (data?.error?.message || "Unknown"), "err"); return; }
+    const url = `${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(config.sheetName)}&row=${encodeURIComponent(JSON.stringify(row))}`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+
+    if (text.trim() !== "ok") {
+      setCamStatus("Sheets error: " + text, "err"); return;
+    }
 
     setCamStatus(`✓ Added "${currentScan.mfrPartNumber}" × ${qty} to inventory.`, "ok");
     addToHistory(currentScan.mfrPartNumber, currentScan.supplier, qty, "New Part Added", currentScan.date);
@@ -527,25 +467,21 @@ async function addNewRow() {
   } catch (err) { setCamStatus("Write failed: " + err.message, "err"); }
 }
 
-// ── Add Stock to Existing Row ──────────────────────────────────────────────────
+// ── Apps Script: Update Existing Row ──────────────────────────────────────────
 async function updateStock(rowIndex, currentQty) {
   const delta  = parseInt(document.getElementById("qtyInput").value) || 1;
   const newQty = currentQty + delta;
   const today  = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-  // Update only columns E (Quantity) and F (LastUpdated)
-  const range = encodeURIComponent(`${config.sheetName}!E${rowIndex}:F${rowIndex}`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED&key=${config.sheetsApiKey}`;
-
   try {
     setCamStatus('<span class="spinner"></span>Updating Google Sheets…', "loading");
-    const resp = await fetch(url, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ values: [[newQty, today]] })
-    });
-    const data = await resp.json();
-    if (!resp.ok) { setCamStatus("Sheets error: " + (data?.error?.message || "Unknown"), "err"); return; }
+    const url = `${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(config.sheetName)}&rowIndex=${rowIndex}&qty=${newQty}&date=${encodeURIComponent(today)}`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+
+    if (text.trim() !== "ok") {
+      setCamStatus("Sheets error: " + text, "err"); return;
+    }
 
     setCamStatus(`✓ Stock updated: ${currentQty} → ${newQty} units.`, "ok");
     addToHistory(currentScan.mfrPartNumber, currentScan.supplier, delta, "Stock Added", today);
@@ -557,17 +493,14 @@ async function updateStock(rowIndex, currentQty) {
 // ── Session History ────────────────────────────────────────────────────────────
 function addToHistory(mfrPn, supplier, qty, action, date) {
   sessionHistory.unshift({ mfrPn, supplier, qty, action, date });
-  const wrap = document.getElementById("historyWrap");
-  wrap.innerHTML = `
+  document.getElementById("historyWrap").innerHTML = `
     <table class="history-table">
       <thead><tr>
         <th>Mfr Part Number</th><th>Supplier</th><th>Action</th><th>Qty</th><th>Date</th>
       </tr></thead>
-      <tbody>
-        ${sessionHistory.map(h => `<tr>
-          <td>${h.mfrPn}</td><td>${h.supplier}</td><td>${h.action}</td><td>${h.qty}</td><td>${h.date}</td>
-        </tr>`).join("")}
-      </tbody>
+      <tbody>${sessionHistory.map(h =>
+        `<tr><td>${h.mfrPn}</td><td>${h.supplier}</td><td>${h.action}</td><td>${h.qty}</td><td>${h.date}</td></tr>`
+      ).join("")}</tbody>
     </table>`;
 }
 
