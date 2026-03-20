@@ -44,12 +44,13 @@
       margin-bottom: 16px;
     }
 
+    /* Larger and more realistic scan area */
     .scan-box {
       position: absolute;
-      left: 41%;
-      top: 47.5%;
-      width: 24%;
-      height: 4.4%;
+      left: 30%;
+      top: 41%;
+      width: 42%;
+      height: 12%;
       border: 3px solid #00d26a;
       border-radius: 8px;
       box-sizing: border-box;
@@ -59,8 +60,8 @@
 
     .scan-label {
       position: absolute;
-      left: 41%;
-      top: calc(47.5% - 32px);
+      left: 30%;
+      top: calc(41% - 34px);
       background: #00d26a;
       color: #083d1f;
       font-weight: bold;
@@ -174,12 +175,12 @@
 <body>
   <div class="container">
     <h1>Label Scanner</h1>
-    <p>Place only the <strong>part-number text</strong> inside the green box. Do not include the black PN box.</p>
+    <p>Place the full part-number line inside the green box. It is okay if the black PN block is also visible.</p>
 
     <h2>Live Camera</h2>
     <div class="video-wrap">
       <video id="video" autoplay playsinline></video>
-      <div class="scan-label">Align only the code here</div>
+      <div class="scan-label">Align the full label line here</div>
       <div class="scan-box"></div>
     </div>
 
@@ -211,7 +212,7 @@
       <canvas id="processCanvas"></canvas>
       <img id="processedPreview" alt="Processed image will appear here" />
       <div class="small-note">
-        This version crops only the code area, enlarges it, increases contrast, and uses Tesseract single-line mode.
+        This version captures a much larger label area, enlarges it, sharpens contrast, and tests multiple OCR modes.
       </div>
     </div>
 
@@ -239,6 +240,14 @@
     let currentStream = null;
     let ocrWorker = null;
 
+    /* Keep the CSS scan box and JS crop area matched */
+    const SCAN_REGION = {
+      x: 0.30,
+      y: 0.41,
+      w: 0.42,
+      h: 0.12
+    };
+
     async function getWorker() {
       if (ocrWorker) {
         return ocrWorker;
@@ -255,12 +264,16 @@
         }
       });
 
-      await ocrWorker.setParameters({
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+      return ocrWorker;
+    }
+
+    async function setWorkerMode(psm) {
+      const worker = await getWorker();
+      await worker.setParameters({
+        tessedit_pageseg_mode: psm,
         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
       });
-
-      return ocrWorker;
+      return worker;
     }
 
     async function startCamera() {
@@ -279,7 +292,11 @@
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
+          video: {
+            facingMode: "environment",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
           audio: false
         });
 
@@ -342,10 +359,10 @@
       ctx.drawImage(video, 0, 0, width, height);
       snapshot.src = canvas.toDataURL("image/png");
 
-      const cropX = Math.floor(width * 0.41);
-      const cropY = Math.floor(height * 0.475);
-      const cropW = Math.floor(width * 0.24);
-      const cropH = Math.floor(height * 0.044);
+      const cropX = Math.floor(width * SCAN_REGION.x);
+      const cropY = Math.floor(height * SCAN_REGION.y);
+      const cropW = Math.floor(width * SCAN_REGION.w);
+      const cropH = Math.floor(height * SCAN_REGION.h);
 
       cropCanvas.width = cropW;
       cropCanvas.height = cropH;
@@ -353,9 +370,12 @@
       cropCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
       cropPreview.src = cropCanvas.toDataURL("image/png");
 
-      processCanvas.width = cropW * 5;
-      processCanvas.height = cropH * 5;
-      const processCtx = processCanvas.getContext("2d");
+      /* enlarge more aggressively */
+      processCanvas.width = cropW * 4;
+      processCanvas.height = cropH * 4;
+      const processCtx = processCanvas.getContext("2d", { willReadFrequently: true });
+
+      processCtx.imageSmoothingEnabled = false;
       processCtx.drawImage(cropCanvas, 0, 0, processCanvas.width, processCanvas.height);
 
       const imageData = processCtx.getImageData(0, 0, processCanvas.width, processCanvas.height);
@@ -366,8 +386,15 @@
         const g = data[i + 1];
         const b = data[i + 2];
 
-        let gray = (0.299 * r) + (0.587 * g) + (0.114 * b);
-        gray = Math.max(0, Math.min(255, (gray - 120) * 2.2 + 120));
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        /* stronger contrast, but not destructive */
+        gray = (gray - 128) * 1.8 + 128;
+
+        /* soft threshold for cleaner text */
+        gray = gray > 145 ? 255 : gray < 90 ? 0 : gray;
+
+        gray = Math.max(0, Math.min(255, gray));
 
         data[i] = gray;
         data[i + 1] = gray;
@@ -405,18 +432,38 @@
       status.textContent = "Preparing OCR...";
 
       try {
-        const worker = await getWorker();
-        const result = await worker.recognize(processedPreview.src);
+        const attempts = [];
 
-        let text = result.data.text || "";
-        text = normalizeOCRText(text);
-        ocrText.value = text;
+        /* Try several OCR modes */
+        const psmModes = [7, 6, 8, 13];
 
-        const partNumber = findLikelyPartNumber(text);
+        for (const mode of psmModes) {
+          const worker = await setWorkerMode(mode);
+          const result = await worker.recognize(processedPreview.src);
 
-        if (partNumber) {
-          partNumberOutput.textContent = partNumber;
-          manualPartNumber.value = partNumber;
+          let text = normalizeOCRText(result.data.text || "");
+          const part = findLikelyPartNumber(text);
+
+          attempts.push({
+            mode,
+            text,
+            part,
+            score: scoreCandidate(text, part)
+          });
+        }
+
+        attempts.sort((a, b) => b.score - a.score);
+        const best = attempts[0];
+
+        const combinedText = attempts
+          .map(a => "PSM " + a.mode + ": " + a.text)
+          .join("\n\n");
+
+        ocrText.value = combinedText;
+
+        if (best.part) {
+          partNumberOutput.textContent = best.part;
+          manualPartNumber.value = best.part;
         } else {
           partNumberOutput.textContent = "No reliable part number detected. Adjust label and scan again.";
         }
@@ -432,29 +479,35 @@
     function normalizeOCRText(text) {
       return text
         .toUpperCase()
+        .replace(/\n+/g, " ")
         .replace(/\s+/g, " ")
         .replace(/[._]/g, "-")
         .replace(/\|/g, "1")
+        .replace(/O/g, "0")
         .trim();
     }
 
     function findLikelyPartNumber(text) {
       const compact = text.replace(/\s+/g, "");
 
-      const exact = compact.match(/\d{3}-\d{5}-\d-[A-Z]{2}/);
-      if (exact) {
-        return exact[0];
-      }
+      const patterns = [
+        /\d{3}-\d{5}-\d-[A-Z]{2}/,
+        /\d{3}-\d{4}-\d-[A-Z]{2}/,
+        /\d{3}-\d{6}-\d-[A-Z]{2}/,
+        /\d{3}[-]?\d{4,6}[-]?\d[-]?[A-Z]{2}/
+      ];
 
-      const loose = compact.match(/\d{3}[-]?\d{4,6}[-]?\d[-]?[A-Z]{2}/);
-      if (loose) {
-        return cleanupPartNumber(loose[0]);
+      for (const pattern of patterns) {
+        const match = compact.match(pattern);
+        if (match) {
+          return cleanupPartNumber(match[0]);
+        }
       }
 
       const pieces = compact.match(/[A-Z0-9-]{8,}/g) || [];
       for (const piece of pieces) {
         const cleaned = cleanupPartNumber(piece);
-        if (/\d{3}-\d{4,6}-\d-[A-Z]{2}/.test(cleaned)) {
+        if (/^\d{3}-\d{4,6}-\d-[A-Z]{2}$/.test(cleaned)) {
           return cleaned;
         }
       }
@@ -483,6 +536,29 @@
       }
 
       return v;
+    }
+
+    function scoreCandidate(text, part) {
+      let score = 0;
+
+      if (part) {
+        score += 100;
+      }
+
+      if (/\d{3}-\d{4,6}-\d-[A-Z]{2}/.test(text.replace(/\s+/g, ""))) {
+        score += 50;
+      }
+
+      const cleaned = text.replace(/[^A-Z0-9-]/g, "");
+      if (cleaned.length >= 8) {
+        score += 10;
+      }
+
+      if (text.includes("PN")) {
+        score += 5;
+      }
+
+      return score;
     }
   </script>
 </body>
