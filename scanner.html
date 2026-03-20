@@ -46,21 +46,21 @@
 
     .scan-box {
       position: absolute;
-      left: 15%;
-      top: 38%;
-      width: 70%;
-      height: 18%;
+      left: 33%;
+      top: 47.5%;
+      width: 34%;
+      height: 4.5%;
       border: 3px solid #00d26a;
-      border-radius: 10px;
+      border-radius: 8px;
       box-sizing: border-box;
       pointer-events: none;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.25);
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.22);
     }
 
     .scan-label {
       position: absolute;
-      left: 15%;
-      top: calc(38% - 32px);
+      left: 33%;
+      top: calc(47.5% - 32px);
       background: #00d26a;
       color: #083d1f;
       font-weight: bold;
@@ -161,12 +161,12 @@
 <body>
   <div class="container">
     <h1>Label Scanner</h1>
-    <p>Place the part number inside the green box before scanning.</p>
+    <p>Place the <strong>PN row</strong> inside the green box before scanning.</p>
 
     <h2>Live Camera</h2>
     <div class="video-wrap">
       <video id="video" autoplay playsinline></video>
-      <div class="scan-label">Place part number here</div>
+      <div class="scan-label">Align PN row here</div>
       <div class="scan-box"></div>
     </div>
 
@@ -198,7 +198,7 @@
       <canvas id="processCanvas"></canvas>
       <img id="processedPreview" alt="Processed image will appear here" />
       <div class="small-note">
-        This version converts the cropped image to stronger black-and-white contrast before OCR.
+        This version uses grayscale only, which is usually better than harsh black-and-white for shiny labels.
       </div>
     </div>
 
@@ -300,10 +300,10 @@
       ctx.drawImage(video, 0, 0, width, height);
       snapshot.src = canvas.toDataURL("image/png");
 
-      const cropX = Math.floor(width * 0.15);
-      const cropY = Math.floor(height * 0.38);
-      const cropW = Math.floor(width * 0.70);
-      const cropH = Math.floor(height * 0.18);
+      const cropX = Math.floor(width * 0.33);
+      const cropY = Math.floor(height * 0.475);
+      const cropW = Math.floor(width * 0.34);
+      const cropH = Math.floor(height * 0.045);
 
       cropCanvas.width = cropW;
       cropCanvas.height = cropH;
@@ -311,10 +311,9 @@
       cropCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
       cropPreview.src = cropCanvas.toDataURL("image/png");
 
-      processCanvas.width = cropW * 2;
-      processCanvas.height = cropH * 2;
+      processCanvas.width = cropW * 3;
+      processCanvas.height = cropH * 3;
       const processCtx = processCanvas.getContext("2d");
-
       processCtx.drawImage(cropCanvas, 0, 0, processCanvas.width, processCanvas.height);
 
       const imageData = processCtx.getImageData(0, 0, processCanvas.width, processCanvas.height);
@@ -324,13 +323,11 @@
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
-
         const gray = (0.299 * r) + (0.587 * g) + (0.114 * b);
-        const bw = gray > 150 ? 255 : 0;
 
-        data[i] = bw;
-        data[i + 1] = bw;
-        data[i + 2] = bw;
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
       }
 
       processCtx.putImageData(imageData, 0, 0);
@@ -377,7 +374,7 @@
         if (partNumber) {
           partNumberOutput.textContent = partNumber;
         } else {
-          partNumberOutput.textContent = "No likely part number detected.";
+          partNumberOutput.textContent = "No reliable PN field detected. Adjust label and scan again.";
         }
 
         status.className = "message";
@@ -389,47 +386,21 @@
     }
 
     function findLikelyPartNumber(text) {
-  const upperText = text.toUpperCase();
-  const lines = upperText
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0);
+      const upperText = text.toUpperCase();
+      const lines = upperText
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
 
-  const blockedPrefixes = ["PO", "SO", "INV", "IDX", "QTY", "DATE"];
-
-  for (const line of lines) {
-    const pnMatch = line.match(/\bPN\b[\s:|]*([A-Z0-9\-]+)/);
-    if (pnMatch && pnMatch[1]) {
-      return pnMatch[1].trim();
-    }
-  }
-
-  for (const line of lines) {
-    const tokens = line.split(/[^A-Z0-9\-]+/).filter(Boolean);
-
-    for (const token of tokens) {
-      const normalized = token.trim();
-
-      if (normalized.length < 6) continue;
-      if (!/[0-9]/.test(normalized)) continue;
-
-      let blocked = false;
-      for (const prefix of blockedPrefixes) {
-        if (normalized.startsWith(prefix)) {
-          blocked = true;
-          break;
+      for (const line of lines) {
+        const pnMatch = line.match(/\bPN\b[\s:|]*([A-Z0-9\-]+)/);
+        if (pnMatch && pnMatch[1]) {
+          return pnMatch[1].trim();
         }
       }
-      if (blocked) continue;
 
-      if (/^[A-Z0-9\-]+$/.test(normalized)) {
-        return normalized;
-      }
+      return "";
     }
-  }
-
-  return "";
-}
   </script>
 </body>
 </html>
