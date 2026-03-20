@@ -14,7 +14,7 @@
     }
 
     .container {
-      max-width: 900px;
+      max-width: 1000px;
       margin: 0 auto;
       background: white;
       padding: 24px;
@@ -27,14 +27,47 @@
       color: #1f3b73;
     }
 
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 700px;
+      margin-bottom: 16px;
+    }
+
     video, canvas, img {
       width: 100%;
-      max-width: 640px;
+      max-width: 700px;
       border: 1px solid #dbe2ea;
       border-radius: 10px;
       background: black;
       display: block;
       margin-bottom: 16px;
+    }
+
+    .scan-box {
+      position: absolute;
+      left: 15%;
+      top: 38%;
+      width: 70%;
+      height: 18%;
+      border: 3px solid #00d26a;
+      border-radius: 10px;
+      box-sizing: border-box;
+      pointer-events: none;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.25);
+    }
+
+    .scan-label {
+      position: absolute;
+      left: 15%;
+      top: calc(38% - 32px);
+      background: #00d26a;
+      color: #083d1f;
+      font-weight: bold;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      pointer-events: none;
     }
 
     button {
@@ -79,10 +112,6 @@
       display: none;
     }
 
-    #snapshot {
-      background: #f8fafc;
-    }
-
     textarea {
       width: 100%;
       min-height: 180px;
@@ -100,15 +129,46 @@
       font-size: 13px;
       margin-top: 8px;
     }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 800px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .result-box {
+      background: #fafbfe;
+      border: 1px solid #e2e8f0;
+      padding: 16px;
+      border-radius: 10px;
+      margin-top: 16px;
+    }
+
+    .part-output {
+      font-size: 18px;
+      font-weight: bold;
+      color: #1f3b73;
+      word-break: break-word;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Label Scanner</h1>
-    <p>Step 3: capture one frame and extract text with OCR.</p>
+    <p>Place the part number inside the green box before scanning.</p>
 
     <h2>Live Camera</h2>
-    <video id="video" autoplay playsinline></video>
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline></video>
+      <div class="scan-label">Place part number here</div>
+      <div class="scan-box"></div>
+    </div>
 
     <div>
       <button onclick="startCamera()">Start Camera</button>
@@ -119,17 +179,38 @@
 
     <div id="status" class="message">Camera not started.</div>
 
+    <div class="grid">
+      <div class="section">
+        <h2>Captured Full Image</h2>
+        <canvas id="canvas"></canvas>
+        <img id="snapshot" alt="Captured frame will appear here" />
+      </div>
+
+      <div class="section">
+        <h2>Cropped OCR Area</h2>
+        <canvas id="cropCanvas"></canvas>
+        <img id="cropPreview" alt="Cropped scan area will appear here" />
+      </div>
+    </div>
+
     <div class="section">
-      <h2>Captured Image</h2>
-      <canvas id="canvas"></canvas>
-      <img id="snapshot" alt="Captured frame will appear here" />
+      <h2>Processed OCR Image</h2>
+      <canvas id="processCanvas"></canvas>
+      <img id="processedPreview" alt="Processed image will appear here" />
+      <div class="small-note">
+        This version converts the cropped image to stronger black-and-white contrast before OCR.
+      </div>
     </div>
 
     <div class="section">
       <h2>Extracted Text</h2>
       <textarea id="ocrText" placeholder="OCR result will appear here..."></textarea>
-      <div class="small-note">
-        OCR may take a few seconds. Wait until the status says it is complete.
+    </div>
+
+    <div class="section">
+      <h2>Likely Part Number</h2>
+      <div class="result-box">
+        <div id="partNumberOutput" class="part-output">No part number detected yet.</div>
       </div>
     </div>
   </div>
@@ -190,6 +271,12 @@
       const video = document.getElementById("video");
       const canvas = document.getElementById("canvas");
       const snapshot = document.getElementById("snapshot");
+      const cropCanvas = document.getElementById("cropCanvas");
+      const cropPreview = document.getElementById("cropPreview");
+      const processCanvas = document.getElementById("processCanvas");
+      const processedPreview = document.getElementById("processedPreview");
+      const ocrText = document.getElementById("ocrText");
+      const partNumberOutput = document.getElementById("partNumberOutput");
       const status = document.getElementById("status");
 
       if (!video.srcObject) {
@@ -209,34 +296,72 @@
 
       canvas.width = width;
       canvas.height = height;
-
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, width, height);
+      snapshot.src = canvas.toDataURL("image/png");
 
-      const imageDataUrl = canvas.toDataURL("image/png");
-      snapshot.src = imageDataUrl;
+      const cropX = Math.floor(width * 0.15);
+      const cropY = Math.floor(height * 0.38);
+      const cropW = Math.floor(width * 0.70);
+      const cropH = Math.floor(height * 0.18);
+
+      cropCanvas.width = cropW;
+      cropCanvas.height = cropH;
+      const cropCtx = cropCanvas.getContext("2d");
+      cropCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+      cropPreview.src = cropCanvas.toDataURL("image/png");
+
+      processCanvas.width = cropW * 2;
+      processCanvas.height = cropH * 2;
+      const processCtx = processCanvas.getContext("2d");
+
+      processCtx.drawImage(cropCanvas, 0, 0, processCanvas.width, processCanvas.height);
+
+      const imageData = processCtx.getImageData(0, 0, processCanvas.width, processCanvas.height);
+      const data = imageData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        const gray = (0.299 * r) + (0.587 * g) + (0.114 * b);
+        const bw = gray > 150 ? 255 : 0;
+
+        data[i] = bw;
+        data[i + 1] = bw;
+        data[i + 2] = bw;
+      }
+
+      processCtx.putImageData(imageData, 0, 0);
+      processedPreview.src = processCanvas.toDataURL("image/png");
+
+      ocrText.value = "";
+      partNumberOutput.textContent = "No part number detected yet.";
 
       status.className = "message";
-      status.textContent = "Frame captured successfully.";
+      status.textContent = "Frame captured and cropped successfully.";
     }
 
     async function extractText() {
-      const snapshot = document.getElementById("snapshot");
+      const processedPreview = document.getElementById("processedPreview");
       const ocrText = document.getElementById("ocrText");
+      const partNumberOutput = document.getElementById("partNumberOutput");
       const status = document.getElementById("status");
 
-      if (!snapshot.src) {
+      if (!processedPreview.src) {
         status.className = "error";
         status.textContent = "Capture an image first.";
         return;
       }
 
       ocrText.value = "";
+      partNumberOutput.textContent = "Searching...";
       status.className = "message";
       status.textContent = "Running OCR... please wait.";
 
       try {
-        const result = await Tesseract.recognize(snapshot.src, "eng", {
+        const result = await Tesseract.recognize(processedPreview.src, "eng", {
           logger: m => {
             if (m.status === "recognizing text") {
               const percent = Math.round((m.progress || 0) * 100);
@@ -245,13 +370,56 @@
           }
         });
 
-        ocrText.value = result.data.text || "";
+        const text = result.data.text || "";
+        ocrText.value = text;
+
+        const partNumber = findLikelyPartNumber(text);
+        if (partNumber) {
+          partNumberOutput.textContent = partNumber;
+        } else {
+          partNumberOutput.textContent = "No likely part number detected.";
+        }
+
         status.className = "message";
         status.textContent = "OCR complete.";
       } catch (error) {
         status.className = "error";
         status.textContent = "OCR failed: " + error.message;
       }
+    }
+
+    function findLikelyPartNumber(text) {
+      const cleanedLines = text
+        .split(/\r?\n/)
+        .map(line => line.trim().toUpperCase())
+        .filter(line => line.length > 0);
+
+      const candidates = [];
+
+      for (const line of cleanedLines) {
+        const tokens = line.split(/[^A-Z0-9\-\/\.]+/).filter(Boolean);
+
+        for (const token of tokens) {
+          const normalized = token.replace(/[^A-Z0-9]/g, "");
+
+          if (normalized.length < 6) continue;
+          if (!/[A-Z]/.test(normalized)) continue;
+          if (!/[0-9]/.test(normalized)) continue;
+
+          let score = 0;
+          score += normalized.length;
+          if (/^[A-Z0-9]+$/.test(normalized)) score += 5;
+          if (/[A-Z]/.test(normalized) && /[0-9]/.test(normalized)) score += 5;
+          if (normalized.length >= 10) score += 5;
+
+          candidates.push({ value: normalized, score: score });
+        }
+      }
+
+      if (candidates.length === 0) return "";
+
+      candidates.sort((a, b) => b.score - a.score);
+      return candidates[0].value;
     }
   </script>
 </body>
