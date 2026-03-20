@@ -211,7 +211,7 @@
       <canvas id="processCanvas"></canvas>
       <img id="processedPreview" alt="Processed image will appear here" />
       <div class="small-note">
-        This version uses grayscale only, which is usually better than harsh black-and-white for shiny labels.
+        OCR is forced into single-line mode and limited to A-Z, 0-9, and hyphen.
       </div>
     </div>
 
@@ -254,9 +254,7 @@
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment"
-          },
+          video: { facingMode: "environment" },
           audio: false
         });
 
@@ -330,8 +328,8 @@
       cropCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
       cropPreview.src = cropCanvas.toDataURL("image/png");
 
-      processCanvas.width = cropW * 3;
-      processCanvas.height = cropH * 3;
+      processCanvas.width = cropW * 4;
+      processCanvas.height = cropH * 4;
       const processCtx = processCanvas.getContext("2d");
       processCtx.drawImage(cropCanvas, 0, 0, processCanvas.width, processCanvas.height);
 
@@ -342,7 +340,9 @@
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
-        const gray = (0.299 * r) + (0.587 * g) + (0.114 * b);
+        let gray = (0.299 * r) + (0.587 * g) + (0.114 * b);
+
+        gray = Math.max(0, Math.min(255, (gray - 110) * 2 + 110));
 
         data[i] = gray;
         data[i + 1] = gray;
@@ -380,16 +380,25 @@
       status.textContent = "Running OCR... please wait.";
 
       try {
-        const result = await Tesseract.recognize(processedPreview.src, "eng", {
-          logger: m => {
-            if (m.status === "recognizing text") {
-              const percent = Math.round((m.progress || 0) * 100);
-              status.textContent = "Running OCR... " + percent + "%";
+        const result = await Tesseract.recognize(
+          processedPreview.src,
+          "eng",
+          {
+            logger: m => {
+              if (m.status === "recognizing text") {
+                const percent = Math.round((m.progress || 0) * 100);
+                status.textContent = "Running OCR... " + percent + "%";
+              }
             }
+          },
+          {
+            tessedit_pageseg_mode: "7",
+            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
           }
-        });
+        );
 
-        const text = result.data.text || "";
+        let text = result.data.text || "";
+        text = normalizeOCRText(text);
         ocrText.value = text;
 
         const partNumber = findLikelyPartNumber(text);
@@ -398,7 +407,7 @@
           partNumberOutput.textContent = partNumber;
           manualPartNumber.value = partNumber;
         } else {
-          partNumberOutput.textContent = "No reliable PN field detected. Adjust label and scan again.";
+          partNumberOutput.textContent = "No reliable part number detected. Adjust label and scan again.";
         }
 
         status.className = "message";
@@ -412,44 +421,35 @@
     function normalizeOCRText(text) {
       return text
         .toUpperCase()
-        .replace(/[|]/g, "1")
-        .replace(/[\.]/g, "-")
         .replace(/\s+/g, " ")
+        .replace(/\|/g, "1")
+        .replace(/[._]/g, "-")
+        .replace(/O/g, "0")
         .trim();
     }
 
     function findLikelyPartNumber(text) {
-      const normalizedText = normalizeOCRText(text);
-      const lines = normalizedText
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
+      const compact = text.replace(/\s+/g, "");
 
-      for (const line of lines) {
-        const pnMatch = line.match(/\bPN\b[\s:\-]*([A-Z0-9\-]+)/);
-        if (pnMatch && pnMatch[1]) {
-          return cleanupPartNumber(pnMatch[1]);
-        }
+      const pnMatch = compact.match(/PN([A-Z0-9-]+)/);
+      if (pnMatch && pnMatch[1]) {
+        return cleanupPartNumber(pnMatch[1]);
       }
 
-      for (const line of lines) {
-        const shapedMatch = line.match(/\b\d{3}[- ]?\d{4,6}[- ]?\d[- ]?[A-Z]{2}\b/);
-        if (shapedMatch) {
-          return cleanupPartNumber(shapedMatch[0]);
-        }
+      const exactShape = compact.match(/\d{3}-\d{5}-\d-[A-Z]{2}/);
+      if (exactShape) {
+        return exactShape[0];
       }
 
-      for (const line of lines) {
-        const tokens = line.split(/[^A-Z0-9\-]+/).filter(Boolean);
+      const looseShape = compact.match(/\d{3}[- ]?\d{4,6}[- ]?\d[- ]?[A-Z]{2}/);
+      if (looseShape) {
+        return cleanupPartNumber(looseShape[0]);
+      }
 
-        for (const token of tokens) {
-          const cleaned = cleanupPartNumber(token);
-
-          if (cleaned.length < 8) continue;
-          if (!/\d/.test(cleaned)) continue;
-          if (!/[A-Z]/.test(cleaned)) continue;
-          if (!cleaned.includes("-")) continue;
-
+      const pieces = compact.match(/[A-Z0-9-]{8,}/g) || [];
+      for (const piece of pieces) {
+        const cleaned = cleanupPartNumber(piece);
+        if (/\d{3}-\d{4,6}-\d-[A-Z]{2}/.test(cleaned)) {
           return cleaned;
         }
       }
@@ -460,17 +460,21 @@
     function cleanupPartNumber(value) {
       let v = value.toUpperCase();
 
-      v = v.replace(/\./g, "-");
       v = v.replace(/\s+/g, "");
-      v = v.replace(/[^A-Z0-9\-]/g, "");
+      v = v.replace(/[._]/g, "-");
+      v = v.replace(/[^A-Z0-9-]/g, "");
       v = v.replace(/-+/g, "-");
 
-      if (/^\d{3}\d{5,6}\d[A-Z]{2}$/.test(v)) {
-        v = v.replace(/^(\d{3})(\d{5,6})(\d)([A-Z]{2})$/, "$1-$2-$3-$4");
+      if (/^\d{3}\d{5}\d[A-Z]{2}$/.test(v)) {
+        v = v.replace(/^(\d{3})(\d{5})(\d)([A-Z]{2})$/, "$1-$2-$3-$4");
+      } else if (/^\d{3}\d{4}\d[A-Z]{2}$/.test(v)) {
+        v = v.replace(/^(\d{3})(\d{4})(\d)([A-Z]{2})$/, "$1-$2-$3-$4");
+      } else if (/^\d{3}\d{6}\d[A-Z]{2}$/.test(v)) {
+        v = v.replace(/^(\d{3})(\d{6})(\d)([A-Z]{2})$/, "$1-$2-$3-$4");
       }
 
-      if (/^\d{3}-\d{4,6}-\d[A-Z]{2}$/.test(v)) {
-        v = v.replace(/^(\d{3}-\d{4,6}-\d)([A-Z]{2})$/, "$1-$2");
+      if (/^\d{3}-\d{5}-\d[A-Z]{2}$/.test(v)) {
+        v = v.replace(/^(\d{3}-\d{5}-\d)([A-Z]{2})$/, "$1-$2");
       }
 
       return v;
