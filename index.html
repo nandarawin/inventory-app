@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f7fb;
+      margin: 0;
+      padding: 0;
+      color: #222;
+    }
+
+    .container {
+      width: 92%;
+      max-width: 1200px;
+      margin: 30px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+      color: #1f3b73;
+    }
+
+    .nav {
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .nav button {
+      background-color: #1f5fbf;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .nav button:hover {
+      background-color: #184d9c;
+    }
+
+    .card {
+      background: #fafbfe;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-weight: bold;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="file"],
+    select {
+      width: 100%;
+      max-width: 420px;
+      padding: 10px;
+      margin-top: 6px;
+      margin-bottom: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+    }
+
+    button.action-btn {
+      background-color: #1f5fbf;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      margin-right: 8px;
+      margin-top: 4px;
+    }
+
+    button.action-btn:hover {
+      background-color: #184d9c;
+    }
+
+    button.danger-btn {
+      background-color: #b42318;
+    }
+
+    button.danger-btn:hover {
+      background-color: #8f1c14;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      background: white;
+    }
+
+    th, td {
+      border: 1px solid #dbe2ea;
+      padding: 10px;
+      text-align: left;
+      font-size: 14px;
+      vertical-align: top;
+    }
+
+    th {
+      background-color: #eaf1fb;
+      color: #1f3b73;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+
+    .message {
+      background: #e8f4ea;
+      color: #1f6b2a;
+      border: 1px solid #b7dfbf;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+
+    .error {
+      background: #fdeaea;
+      color: #a12626;
+      border: 1px solid #efb4b4;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+
+    .results-box {
+      background: #fff8e6;
+      border: 1px solid #f2d58a;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 10px;
+      align-items: end;
+      flex-wrap: wrap;
+    }
+
+    .search-row input[type="text"] {
+      margin-bottom: 0;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .small-note {
+      color: #555;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: #f7faff;
+      border: 1px solid #d6e4ff;
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .stat-card strong {
+      display: block;
+      font-size: 24px;
+      color: #1f3b73;
+      margin-top: 8px;
+    }
+
+    ul {
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Inventory System</h1>
+
+    <div class="nav">
+      <button onclick="showPage('uploadPage')">Upload BOM CSV</button>
+      <button onclick="showPage('manualPage')">Manual Stock Update</button>
+      <button onclick="showPage('inventoryPage'); renderInventory();">View Inventory</button>
+      <button onclick="showPage('transactionsPage'); renderTransactions();">Transaction History</button>
+      <button onclick="showPage('addItemPage')">Add New Item</button>
+    </div>
+
+    <div id="globalMessage"></div>
+
+    <div id="uploadPage">
+      <div class="stat-grid">
+        <div class="stat-card">Total Items<strong id="statItems">0</strong></div>
+        <div class="stat-card">Total Quantity<strong id="statQty">0</strong></div>
+        <div class="stat-card">Transactions<strong id="statTx">0</strong></div>
+      </div>
+
+      <div class="card">
+        <h2>Upload BOM CSV</h2>
+        <input type="file" id="csvFile" accept=".csv" />
+        <br>
+        <button class="action-btn" onclick="processCSV()">Process File</button>
+        <button class="action-btn" onclick="downloadSampleCSV()">Download Sample CSV</button>
+        <div class="small-note">
+          Required CSV columns: <strong>PartNumber, Quantity, Action, Location</strong>
+        </div>
+      </div>
+
+      <div id="uploadResults"></div>
+    </div>
+
+    <div id="manualPage" class="hidden">
+      <div class="card">
+        <h2>Manual Stock Update</h2>
+
+        <label>PartNumber:</label><br>
+        <input type="text" id="manualPartNumber"><br>
+
+        <label>Action:</label><br>
+        <select id="manualAction">
+          <option value="Receive">Receive</option>
+          <option value="Use">Use</option>
+        </select><br>
+
+        <label>Quantity:</label><br>
+        <input type="number" id="manualQuantity" min="1"><br>
+
+        <label>Location:</label><br>
+        <input type="text" id="manualLocation"><br>
+
+        <button class="action-btn" onclick="manualUpdate()">Submit Update</button>
+      </div>
+
+      <div id="manualMessage"></div>
+    </div>
+
+    <div id="inventoryPage" class="hidden">
+      <div class="card">
+        <h2>Inventory List</h2>
+        <div class="search-row">
+          <div>
+            <label>Search PartNumber:</label><br>
+            <input type="text" id="inventorySearch" oninput="renderInventory()">
+          </div>
+          <div>
+            <button class="action-btn" onclick="exportInventoryCSV()">Export Inventory CSV</button>
+          </div>
+          <div>
+            <button class="action-btn danger-btn" onclick="clearAllData()">Clear All Data</button>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>PartNumber</th>
+            <th>Quantity</th>
+            <th>Location</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="transactionsPage" class="hidden">
+      <div class="card">
+        <h2>Transaction History</h2>
+        <button class="action-btn" onclick="exportTransactionsCSV()">Export Transactions CSV</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>PartNumber</th>
+            <th>Action</th>
+            <th>Quantity</th>
+            <th>Location</th>
+            <th>OldQuantity</th>
+            <th>NewQuantity</th>
+          </tr>
+        </thead>
+        <tbody id="transactionsTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="addItemPage" class="hidden">
+      <div class="card">
+        <h2>Add New Item</h2>
+
+        <label>PartNumber:</label><br>
+        <input type="text" id="addPartNumber"><br>
+
+        <label>Quantity:</label><br>
+        <input type="number" id="addQuantity"><br>
+
+        <label>Location:</label><br>
+        <input type="text" id="addLocation"><br>
+
+        <label>Description:</label><br>
+        <input type="text" id="addDescription"><br>
+
+        <button class="action-btn" onclick="addItem()">Add Item</button>
+      </div>
+
+      <div id="addItemMessage"></div>
+    </div>
+  </div>
+
+  <script>
+    function getInventory() {
+      return JSON.parse(localStorage.getItem("inventoryData") || "[]");
+    }
+
+    function saveInventory(data) {
+      localStorage.setItem("inventoryData", JSON.stringify(data));
+      updateStats();
+    }
+
+    function getTransactions() {
+      return JSON.parse(localStorage.getItem("transactionData") || "[]");
+    }
+
+    function saveTransactions(data) {
+      localStorage.setItem("transactionData", JSON.stringify(data));
+      updateStats();
+    }
+
+    function showMessage(targetId, type, text) {
+      const el = document.getElementById(targetId);
+      el.innerHTML = `<div class="${type}">${text}</div>`;
+    }
+
+    function showGlobalMessage(type, text) {
+      document.getElementById("globalMessage").innerHTML = `<div class="${type}">${text}</div>`;
+      setTimeout(() => {
+        document.getElementById("globalMessage").innerHTML = "";
+      }, 3000);
+    }
+
+    function showPage(pageId) {
+      const pages = ["uploadPage", "manualPage", "inventoryPage", "transactionsPage", "addItemPage"];
+      for (const page of pages) {
+        document.getElementById(page).classList.add("hidden");
+      }
+      document.getElementById(pageId).classList.remove("hidden");
+      updateStats();
+    }
+
+    function normalizeText(value) {
+      return String(value || "").trim().toUpperCase();
+    }
+
+    function getNow() {
+      return new Date().toLocaleString();
+    }
+
+    function updateStats() {
+      const inventory = getInventory();
+      const transactions = getTransactions();
+      const totalQty = inventory.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
+      document.getElementById("statItems").textContent = inventory.length;
+      document.getElementById("statQty").textContent = totalQty;
+      document.getElementById("statTx").textContent = transactions.length;
+    }
+
+    function addTransaction(partNumber, action, quantity, location, oldQuantity, newQuantity) {
+      const transactions = getTransactions();
+      transactions.unshift({
+        timestamp: getNow(),
+        partNumber,
+        action,
+        quantity,
+        location,
+        oldQuantity,
+        newQuantity
+      });
+      saveTransactions(transactions);
+    }
+
+    function addItem() {
+      const partNumber = normalizeText(document.getElementById("addPartNumber").value);
+      const quantity = parseInt(document.getElementById("addQuantity").value, 10);
+      const location = normalizeText(document.getElementById("addLocation").value);
+      const description = String(document.getElementById("addDescription").value || "").trim();
+
+      if (!partNumber || isNaN(quantity) || !location) {
+        showMessage("addItemMessage", "error", "Please fill in all required fields correctly.");
+        return;
+      }
+
+      const inventory = getInventory();
+      const existing = inventory.find(item => item.partNumber === partNumber);
+
+      if (existing) {
+        showMessage("addItemMessage", "error", `Item '${partNumber}' already exists.`);
+        return;
+      }
+
+      inventory.push({
+        partNumber,
+        quantity,
+        location,
+        description
+      });
+
+      saveInventory(inventory);
+      addTransaction(partNumber, "Add", quantity, location, 0, quantity);
+
+      document.getElementById("addPartNumber").value = "";
+      document.getElementById("addQuantity").value = "";
+      document.getElementById("addLocation").value = "";
+      document.getElementById("addDescription").value = "";
+
+      showMessage("addItemMessage", "message", `Item '${partNumber}' added successfully.`);
+    }
+
+    function manualUpdate() {
+      const partNumber = normalizeText(document.getElementById("manualPartNumber").value);
+      const action = document.getElementById("manualAction").value;
+      const quantity = parseInt(document.getElementById("manualQuantity").value, 10);
+      const location = normalizeText(document.getElementById("manualLocation").value);
+
+      if (!partNumber || isNaN(quantity) || quantity <= 0 || !location) {
+        showMessage("manualMessage", "error", "Please fill in all fields correctly.");
+        return;
+      }
+
+      const inventory = getInventory();
+      const item = inventory.find(x => x.partNumber === partNumber);
+
+      if (!item) {
+        showMessage("manualMessage", "error", `PartNumber '${partNumber}' not found.`);
+        return;
+      }
+
+      const oldQuantity = Number(item.quantity);
+      let newQuantity = oldQuantity;
+
+      if (action === "Receive") {
+        newQuantity = oldQuantity + quantity;
+      } else if (action === "Use") {
+        newQuantity = oldQuantity - quantity;
+        if (newQuantity < 0) {
+          showMessage("manualMessage", "error", `Not enough stock for '${partNumber}'.`);
+          return;
+        }
+      }
+
+      item.quantity = newQuantity;
+      item.location = location;
+
+      saveInventory(inventory);
+      addTransaction(partNumber, action, quantity, location, oldQuantity, newQuantity);
+
+      document.getElementById("manualPartNumber").value = "";
+      document.getElementById("manualQuantity").value = "";
+      document.getElementById("manualLocation").value = "";
+
+      showMessage("manualMessage", "message", `${partNumber} updated successfully: ${oldQuantity} -> ${newQuantity}`);
+    }
+
+    function renderInventory() {
+      const search = normalizeText(document.getElementById("inventorySearch").value);
+      const inventory = getInventory();
+      const tbody = document.getElementById("inventoryTableBody");
+      tbody.innerHTML = "";
+
+      let filtered = inventory;
+      if (search) {
+        filtered = inventory.filter(item => item.partNumber.includes(search));
+      }
+
+      filtered.sort((a, b) => a.partNumber.localeCompare(b.partNumber));
+
+      for (const row of filtered) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.partNumber}</td>
+          <td>${row.quantity}</td>
+          <td>${row.location || ""}</td>
+          <td>${row.description || ""}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderTransactions() {
+      const transactions = getTransactions();
+      const tbody = document.getElementById("transactionsTableBody");
+      tbody.innerHTML = "";
+
+      for (const row of transactions) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.timestamp}</td>
+          <td>${row.partNumber}</td>
+          <td>${row.action}</td>
+          <td>${row.quantity}</td>
+          <td>${row.location || ""}</td>
+          <td>${row.oldQuantity}</td>
+          <td>${row.newQuantity}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function parseCSVLine(line) {
+      const result = [];
+      let current = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const next = line[i + 1];
+
+        if (char === '"' && inQuotes && next === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === "," && !inQuotes) {
+          result.push(current);
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+
+      result.push(current);
+      return result.map(x => x.trim());
+    }
+
+    function csvToObjects(text) {
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+      if (lines.length < 2) return [];
+
+      const headers = parseCSVLine(lines[0]);
+      const objects = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        const obj = {};
+        headers.forEach((header, idx) => {
+          obj[header.trim()] = values[idx] !== undefined ? values[idx] : "";
+        });
+        objects.push(obj);
+      }
+
+      return objects;
+    }
+
+    function processCSV() {
+      const fileInput = document.getElementById("csvFile");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        showGlobalMessage("error", "No file selected.");
+        return;
+      }
+
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        try {
+          const text = e.target.result;
+          const rows = csvToObjects(text);
+          const requiredColumns = ["PartNumber", "Quantity", "Action", "Location"];
+
+          if (rows.length === 0) {
+            document.getElementById("uploadResults").innerHTML = `<div class="error">CSV is empty or invalid.</div>`;
+            return;
+          }
+
+          const firstRow = rows[0];
+          for (const col of requiredColumns) {
+            if (!(col in firstRow)) {
+              document.getElementById("uploadResults").innerHTML = `<div class="error">Missing required column: ${col}</div>`;
+              return;
+            }
+          }
+
+          const inventory = getInventory();
+          const results = [];
+
+          for (const row of rows) {
+            const partNumber = normalizeText(row.PartNumber);
+            const quantity = parseInt(row.Quantity, 10);
+            const actionRaw = String(row.Action || "").trim();
+            const action = actionRaw.toLowerCase();
+            const location = normalizeText(row.Location);
+
+            if (!partNumber) {
+              results.push("Skipped row: blank PartNumber");
+              continue;
+            }
+
+            if (isNaN(quantity) || quantity <= 0) {
+              results.push(`Skipped ${partNumber}: invalid quantity`);
+              continue;
+            }
+
+            let item = inventory.find(x => x.partNumber === partNumber);
+
+            if (!item) {
+              if (action === "receive") {
+                inventory.push({
+                  partNumber: partNumber,
+                  quantity: quantity,
+                  location: location,
+                  description: "Auto-added from BOM upload"
+                });
+
+                addTransaction(partNumber, "Receive", quantity, location, 0, quantity);
+                results.push(`${partNumber}: auto-added with quantity ${quantity}`);
+              } else if (action === "use") {
+                results.push(`Warning: PartNumber '${partNumber}' not found in inventory`);
+              } else {
+                results.push(`Error: Invalid action '${actionRaw}' for ${partNumber}`);
+              }
+              continue;
+            }
+
+            const oldQuantity = Number(item.quantity);
+            let newQuantity = oldQuantity;
+
+            if (action === "receive") {
+              newQuantity = oldQuantity + quantity;
+            } else if (action === "use") {
+              newQuantity = oldQuantity - quantity;
+              if (newQuantity < 0) {
+                results.push(`Error: Not enough stock for ${partNumber}`);
+                continue;
+              }
+            } else {
+              results.push(`Error: Invalid action '${actionRaw}' for ${partNumber}`);
+              continue;
+            }
+
+            item.quantity = newQuantity;
+            item.location = location;
+            addTransaction(partNumber, action === "receive" ? "Receive" : "Use", quantity, location, oldQuantity, newQuantity);
+            results.push(`${partNumber}: ${oldQuantity} -> ${newQuantity}`);
+          }
+
+          saveInventory(inventory);
+
+          document.getElementById("uploadResults").innerHTML = `
+            <div class="message">Processing complete.</div>
+            <div class="results-box">
+              <h3>Results</h3>
+              <ul>${results.map(item => `<li>${item}</li>`).join("")}</ul>
+            </div>
+          `;
+
+          fileInput.value = "";
+          renderInventory();
+          renderTransactions();
+          showGlobalMessage("message", "BOM processed successfully.");
+        } catch (err) {
+          document.getElementById("uploadResults").innerHTML = `<div class="error">Error reading CSV file: ${err.message}</div>`;
+        }
+      };
+
+      reader.readAsText(file);
+    }
+
+    function exportCSV(filename, rows) {
+      if (!rows.length) {
+        showGlobalMessage("error", "No data to export.");
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      const csv = [
+        headers.join(","),
+        ...rows.map(row =>
+          headers.map(header => {
+            const value = String(row[header] ?? "");
+            return `"${value.replace(/"/g, '""')}"`;
+          }).join(",")
+        )
+      ].join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function exportInventoryCSV() {
+      const inventory = getInventory().map(item => ({
+        PartNumber: item.partNumber,
+        Quantity: item.quantity,
+        Location: item.location,
+        Description: item.description
+      }));
+      exportCSV("inventory_export.csv", inventory);
+    }
+
+    function exportTransactionsCSV() {
+      const transactions = getTransactions().map(item => ({
+        Timestamp: item.timestamp,
+        PartNumber: item.partNumber,
+        Action: item.action,
+        Quantity: item.quantity,
+        Location: item.location,
+        OldQuantity: item.oldQuantity,
+        NewQuantity: item.newQuantity
+      }));
+      exportCSV("transactions_export.csv", transactions);
+    }
+
+    function downloadSampleCSV() {
+      const sampleRows = [
+        { PartNumber: "MC0805X475K100CT", Quantity: 10, Action: "Receive", Location: "A1" },
+        { PartNumber: "RK73H2BTTD10R0F", Quantity: 5, Action: "Receive", Location: "B2" },
+        { PartNumber: "CC0402FRNPO9BN150", Quantity: 2, Action: "Use", Location: "C1" }
+      ];
+      exportCSV("sample_bom.csv", sampleRows);
+    }
+
+    function clearAllData() {
+      const confirmed = confirm("Are you sure you want to clear all inventory and transaction data?");
+      if (!confirmed) return;
+
+      localStorage.removeItem("inventoryData");
+      localStorage.removeItem("transactionData");
+      renderInventory();
+      renderTransactions();
+      updateStats();
+      showGlobalMessage("message", "All data cleared.");
+    }
+
+    updateStats();
+    renderInventory();
+    renderTransactions();
+  </script>
+</body>
+</html>
