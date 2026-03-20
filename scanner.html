@@ -389,38 +389,47 @@
     }
 
     function findLikelyPartNumber(text) {
-      const cleanedLines = text
-        .split(/\r?\n/)
-        .map(line => line.trim().toUpperCase())
-        .filter(line => line.length > 0);
+  const upperText = text.toUpperCase();
+  const lines = upperText
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
 
-      const candidates = [];
+  const blockedPrefixes = ["PO", "SO", "INV", "IDX", "QTY", "DATE"];
 
-      for (const line of cleanedLines) {
-        const tokens = line.split(/[^A-Z0-9\-\/\.]+/).filter(Boolean);
+  for (const line of lines) {
+    const pnMatch = line.match(/\bPN\b[\s:|]*([A-Z0-9\-]+)/);
+    if (pnMatch && pnMatch[1]) {
+      return pnMatch[1].trim();
+    }
+  }
 
-        for (const token of tokens) {
-          const normalized = token.replace(/[^A-Z0-9]/g, "");
+  for (const line of lines) {
+    const tokens = line.split(/[^A-Z0-9\-]+/).filter(Boolean);
 
-          if (normalized.length < 6) continue;
-          if (!/[A-Z]/.test(normalized)) continue;
-          if (!/[0-9]/.test(normalized)) continue;
+    for (const token of tokens) {
+      const normalized = token.trim();
 
-          let score = 0;
-          score += normalized.length;
-          if (/^[A-Z0-9]+$/.test(normalized)) score += 5;
-          if (/[A-Z]/.test(normalized) && /[0-9]/.test(normalized)) score += 5;
-          if (normalized.length >= 10) score += 5;
+      if (normalized.length < 6) continue;
+      if (!/[0-9]/.test(normalized)) continue;
 
-          candidates.push({ value: normalized, score: score });
+      let blocked = false;
+      for (const prefix of blockedPrefixes) {
+        if (normalized.startsWith(prefix)) {
+          blocked = true;
+          break;
         }
       }
+      if (blocked) continue;
 
-      if (candidates.length === 0) return "";
-
-      candidates.sort((a, b) => b.score - a.score);
-      return candidates[0].value;
+      if (/^[A-Z0-9\-]+$/.test(normalized)) {
+        return normalized;
+      }
     }
+  }
+
+  return "";
+}
   </script>
 </body>
 </html>
