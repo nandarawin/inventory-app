@@ -82,12 +82,30 @@
     #snapshot {
       background: #f8fafc;
     }
+
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+      resize: vertical;
+      background: #fff;
+    }
+
+    .small-note {
+      color: #555;
+      font-size: 13px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Label Scanner</h1>
-    <p>Step 2: capture one frame from the camera.</p>
+    <p>Step 3: capture one frame and extract text with OCR.</p>
 
     <h2>Live Camera</h2>
     <video id="video" autoplay playsinline></video>
@@ -96,6 +114,7 @@
       <button onclick="startCamera()">Start Camera</button>
       <button onclick="stopCamera()">Stop Camera</button>
       <button onclick="captureFrame()">Scan</button>
+      <button onclick="extractText()">Extract Text</button>
     </div>
 
     <div id="status" class="message">Camera not started.</div>
@@ -105,7 +124,17 @@
       <canvas id="canvas"></canvas>
       <img id="snapshot" alt="Captured frame will appear here" />
     </div>
+
+    <div class="section">
+      <h2>Extracted Text</h2>
+      <textarea id="ocrText" placeholder="OCR result will appear here..."></textarea>
+      <div class="small-note">
+        OCR may take a few seconds. Wait until the status says it is complete.
+      </div>
+    </div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <script>
     let currentStream = null;
@@ -189,6 +218,40 @@
 
       status.className = "message";
       status.textContent = "Frame captured successfully.";
+    }
+
+    async function extractText() {
+      const snapshot = document.getElementById("snapshot");
+      const ocrText = document.getElementById("ocrText");
+      const status = document.getElementById("status");
+
+      if (!snapshot.src) {
+        status.className = "error";
+        status.textContent = "Capture an image first.";
+        return;
+      }
+
+      ocrText.value = "";
+      status.className = "message";
+      status.textContent = "Running OCR... please wait.";
+
+      try {
+        const result = await Tesseract.recognize(snapshot.src, "eng", {
+          logger: m => {
+            if (m.status === "recognizing text") {
+              const percent = Math.round((m.progress || 0) * 100);
+              status.textContent = "Running OCR... " + percent + "%";
+            }
+          }
+        });
+
+        ocrText.value = result.data.text || "";
+        status.className = "message";
+        status.textContent = "OCR complete.";
+      } catch (error) {
+        status.className = "error";
+        status.textContent = "OCR failed: " + error.message;
+      }
     }
   </script>
 </body>
