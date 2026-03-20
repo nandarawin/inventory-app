@@ -3,146 +3,200 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Label Scanner</title>
+  <title>Inventory Scanner</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg: #0f1117;
-      --surface: #181c27;
-      --surface2: #1e2333;
-      --border: #2a3045;
-      --accent: #00e87a;
-      --accent-dim: rgba(0,232,122,0.12);
-      --text: #e8eaf0;
-      --muted: #6b7280;
-      --error-bg: #2a1a1a;
-      --error: #f87171;
-      --mono: 'DM Mono', monospace;
-      --sans: 'DM Sans', sans-serif;
+      --bg: #0f1117; --surface: #181c27; --surface2: #1e2333;
+      --border: #2a3045; --accent: #00e87a; --text: #e8eaf0;
+      --muted: #6b7280; --error-bg: #2a1a1a; --error: #f87171;
+      --warn: #fbbf24; --info: #93c5fd;
+      --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
     }
-
-    body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; padding: 32px 16px; }
-    .container { max-width: 960px; margin: 0 auto; }
-    header { margin-bottom: 32px; display: flex; align-items: flex-end; gap: 16px; }
-    header h1 { font-family: var(--mono); font-size: 22px; color: var(--accent); letter-spacing: -0.5px; }
-    header span { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
-    .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; }
-    .video-wrap { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 16/9; }
-    video { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .scan-box-border { position: absolute; left: 26%; top: 37%; width: 50%; height: 18%; border: 2px solid var(--accent); border-radius: 6px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); }
-    .scan-tag { position: absolute; left: 26%; top: calc(37% - 30px); background: var(--accent); color: #052916; font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 5px; }
-    .corner { position: absolute; width: 14px; height: 14px; border-color: var(--accent); border-style: solid; }
-    .corner.tl { top: 37%; left: 26%; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
-    .corner.tr { top: 37%; left: calc(26% + 50%); border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; transform: translateX(-100%); }
-    .corner.bl { top: calc(37% + 18%); left: 26%; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; transform: translateY(-100%); }
-    .corner.br { top: calc(37% + 18%); left: calc(26% + 50%); border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; transform: translate(-100%, -100%); }
-    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; padding: 28px 16px; }
+    .container { max-width: 980px; margin: 0 auto; }
+    header { margin-bottom: 28px; display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+    header h1 { font-family: var(--mono); font-size: 20px; color: var(--accent); letter-spacing: -0.5px; }
+    header span { font-size: 12px; color: var(--muted); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 18px; }
+    .card-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.8px; color: var(--muted); margin-bottom: 14px; }
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width:640px){ .config-grid { grid-template-columns: 1fr; } }
+    .field-label { font-size: 11px; color: var(--muted); margin-bottom: 5px; font-weight: 600; letter-spacing: 0.5px; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    input[type=text], input[type=password], input[type=number] {
+      width: 100%; padding: 9px 12px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      font-family: var(--mono); font-size: 13px; outline: none; transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--accent); }
+    .save-row { display: flex; gap: 10px; margin-top: 14px; align-items: center; flex-wrap: wrap; }
+    .key-status { font-size: 12px; font-family: var(--mono); color: var(--muted); }
     button { font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
     button:active { transform: scale(0.97); }
-    .btn-primary { background: var(--accent); color: #052916; }
+    .btn-primary  { background: var(--accent); color: #052916; }
     .btn-primary:hover { opacity: 0.88; }
-    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary{ background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
     .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-    .btn-danger { background: transparent; color: var(--error); border: 1px solid #3a2020; }
+    .btn-danger   { background: transparent; color: var(--error); border: 1px solid #3a2020; }
     .btn-danger:hover { background: #2a1a1a; }
-    .status { margin-top: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-family: var(--mono); border: 1px solid var(--border); background: var(--surface2); color: var(--muted); transition: all 0.2s; }
-    .status.ok { border-color: #1a3a28; background: #0e2318; color: var(--accent); }
-    .status.err { border-color: #3a2020; background: var(--error-bg); color: var(--error); }
-    .status.loading { border-color: #2a3045; color: #93c5fd; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 680px) { .grid2 { grid-template-columns: 1fr; } }
-    .preview-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-    img.preview { width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #000; display: block; min-height: 80px; object-fit: contain; }
+    .btn-success  { background: #064e29; color: var(--accent); border: 1px solid #0a7a3e; }
+    .btn-success:hover { background: #0a6b35; }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .video-wrap { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 16/9; }
+    video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .scan-box-border { position: absolute; left: 15%; top: 25%; width: 70%; height: 50%; border: 2px solid var(--accent); border-radius: 6px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); }
+    .scan-tag { position: absolute; left: 15%; top: calc(25% - 28px); background: var(--accent); color: #052916; font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 5px; }
+    .corner { position: absolute; width: 14px; height: 14px; border-color: var(--accent); border-style: solid; }
+    .corner.tl { top: 25%; left: 15%; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
+    .corner.tr { top: 25%; left: calc(15% + 70%); border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; transform: translateX(-100%); }
+    .corner.bl { top: calc(25% + 50%); left: 15%; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; transform: translateY(-100%); }
+    .corner.br { top: calc(25% + 50%); left: calc(15% + 70%); border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; transform: translate(-100%, -100%); }
+    .status { margin-top: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-family: var(--mono); border: 1px solid var(--border); background: var(--surface2); color: var(--muted); }
+    .status.ok      { border-color: #1a3a28; background: #0e2318; color: var(--accent); }
+    .status.err     { border-color: #3a2020; background: var(--error-bg); color: var(--error); }
+    .status.loading { border-color: #1e2e50; background: #111827; color: var(--info); }
+    .status.warn    { border-color: #3a2f10; background: #1f1a08; color: var(--warn); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width:640px){ .grid2 { grid-template-columns: 1fr; } }
+    .preview-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    img.preview { width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #000; display: block; min-height: 70px; object-fit: contain; }
     canvas { display: none; }
-    .result-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
-    .result-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
-    .part-number { font-family: var(--mono); font-size: 30px; font-weight: 500; color: var(--accent); letter-spacing: 2px; word-break: break-all; min-height: 40px; }
-    .part-number.empty { color: var(--muted); font-size: 16px; }
-    .manual-row { margin-top: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .manual-row input { flex: 1; min-width: 200px; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 14px; }
-    .manual-row input:focus { outline: none; border-color: var(--accent); }
-    .ocr-raw { font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-height: 60px; white-space: pre-wrap; word-break: break-all; }
+    .result-panel { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .result-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+    .part-big { font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--accent); letter-spacing: 2px; word-break: break-all; min-height: 34px; }
+    .part-big.empty { color: var(--muted); font-size: 15px; letter-spacing: 0; }
+    .supplier-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; font-family: var(--mono); margin-top: 6px; }
+    .badge-digikey  { background: #0d2a4a; color: #60b0f4; border: 1px solid #1a4a7a; }
+    .badge-mouser   { background: #1a2a0a; color: #86d44a; border: 1px solid #2a4a10; }
+    .badge-octopart { background: #2a1a0a; color: #f4a060; border: 1px solid #4a2a10; }
+    .badge-unknown  { background: #222; color: var(--muted); border: 1px solid var(--border); }
+    .result-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+    @media(max-width:640px){ .result-fields { grid-template-columns: 1fr; } }
+    .inv-panel { border-radius: 10px; padding: 16px; margin-top: 4px; }
+    .inv-panel.found    { border: 1px solid #0a7a3e; background: #050f09; }
+    .inv-panel.notfound { border: 1px solid #1a3060; background: #050a18; }
+    .inv-panel.nosheet  { border: 1px solid var(--border); background: var(--bg); }
+    .inv-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .inv-title.found    { color: var(--accent); }
+    .inv-title.notfound { color: var(--info); }
+    .inv-title.nosheet  { color: var(--muted); }
+    .inv-info { font-family: var(--mono); font-size: 13px; color: var(--text); margin-bottom: 14px; line-height: 1.9; }
+    .qty-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .qty-row input { width: 90px; }
+    .history-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .history-table th { text-align: left; padding: 8px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); border-bottom: 1px solid var(--border); }
+    .history-table td { padding: 8px 10px; border-bottom: 1px solid #1a1f2e; font-family: var(--mono); color: var(--text); }
+    .history-table tr:last-child td { border-bottom: none; }
+    .history-table tr:hover td { background: var(--surface2); }
+    .empty-history { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #2a3880; border-top-color: #93c5fd; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    .spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid #1e3060; border-top-color: var(--info); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
   </style>
 </head>
 <body>
 <div class="container">
 
   <header>
-    <h1>// LABEL SCANNER</h1>
-    <span>Claude Vision · Part Number Extraction</span>
+    <h1>// INVENTORY SCANNER</h1>
+    <span>Claude Vision · Digi-Key · Mouser · Octopart · Google Sheets</span>
   </header>
 
-  <!-- API Key Card -->
+  <!-- ── CONFIGURATION ── -->
   <div class="card">
-    <div class="card-title">Anthropic API Key</div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <input type="password" id="apiKeyInput"
-        placeholder="sk-ant-..."
-        style="flex:1;min-width:260px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:13px;"
-      />
-      <button class="btn-primary" onclick="saveKey()">Save Key</button>
+    <div class="card-title">Configuration</div>
+    <div class="config-grid">
+      <div>
+        <div class="field-label">Anthropic API Key</div>
+        <input type="password" id="anthropicKey" placeholder="sk-ant-..." />
+      </div>
+      <div>
+        <div class="field-label">Google Sheets API Key</div>
+        <input type="password" id="sheetsApiKey" placeholder="AIza..." />
+      </div>
+      <div>
+        <div class="field-label">Spreadsheet ID</div>
+        <input type="text" id="spreadsheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+        <div class="hint">From your sheet URL: /spreadsheets/d/<b style="color:var(--text)">THIS_PART</b>/edit</div>
+      </div>
+      <div>
+        <div class="field-label">Sheet Tab Name</div>
+        <input type="text" id="sheetName" placeholder="Inventory" value="Inventory" />
+        <div class="hint">Exactly as shown on the tab at the bottom of your sheet</div>
+      </div>
     </div>
-    <div id="keyStatus" style="margin-top:10px;font-size:12px;color:var(--muted);font-family:var(--mono);">
-      Key not set. Get yours at <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--accent)">console.anthropic.com/keys</a>
+    <div class="save-row">
+      <button class="btn-primary" onclick="saveConfig()">Save Config</button>
+      <span id="configStatus" class="key-status">Not configured.</span>
     </div>
   </div>
 
-  <!-- Camera Card -->
+  <!-- ── CAMERA ── -->
   <div class="card">
     <div class="card-title">Live Camera</div>
     <div class="video-wrap">
       <video id="video" autoplay playsinline muted></video>
       <div class="scan-box-border"></div>
-      <div class="scan-tag">Align PN row here</div>
-      <div class="corner tl"></div>
-      <div class="corner tr"></div>
-      <div class="corner bl"></div>
-      <div class="corner br"></div>
+      <div class="scan-tag">Align full label here</div>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
     </div>
     <div class="btn-row">
       <button class="btn-primary" onclick="startCamera()">Start Camera</button>
-      <button class="btn-secondary" onclick="captureAndExtract()">⚡ Scan & Extract</button>
-      <button class="btn-danger" onclick="stopCamera()">Stop</button>
+      <button class="btn-secondary" onclick="captureAndExtract()">⚡ Scan Label</button>
+      <button class="btn-danger" onclick="stopCamera()">Stop Camera</button>
     </div>
-    <div id="status" class="status">Camera not started.</div>
+    <div id="camStatus" class="status">Camera not started.</div>
   </div>
 
-  <!-- Previews -->
+  <!-- ── PREVIEWS ── -->
   <div class="card">
     <div class="card-title">Capture Previews</div>
     <div class="grid2">
-      <div>
-        <div class="preview-label">Full Frame</div>
-        <img id="snapshot" class="preview" alt="Full frame" />
-      </div>
-      <div>
-        <div class="preview-label">Cropped PN Region</div>
-        <img id="cropPreview" class="preview" alt="Cropped region" />
-      </div>
+      <div><div class="preview-label">Full Frame</div><img id="snapshot" class="preview" alt="" /></div>
+      <div><div class="preview-label">Cropped Region</div><img id="cropPreview" class="preview" alt="" /></div>
     </div>
   </div>
 
-  <!-- Result -->
+  <!-- ── SCAN RESULT ── -->
   <div class="card">
-    <div class="card-title">Extracted Part Number</div>
-    <div class="result-card">
-      <div class="result-label">Detected</div>
-      <div id="partNumberOutput" class="part-number empty">—</div>
-      <div class="manual-row">
-        <input type="text" id="manualPartNumber" placeholder="Manual correction if needed" />
-        <button class="btn-secondary" onclick="copyPN()">Copy</button>
+    <div class="card-title">Scan Result</div>
+    <div class="result-panel">
+
+      <div class="result-top">
+        <div>
+          <div class="preview-label">Manufacturer Part Number</div>
+          <div id="mfrPnOutput" class="part-big empty">—</div>
+          <div id="supplierBadge" style="margin-top:6px"></div>
+        </div>
+        <div style="text-align:right">
+          <div class="preview-label">Date Scanned</div>
+          <div id="dateDisplay" style="font-family:var(--mono);font-size:13px;color:var(--muted)">—</div>
+        </div>
       </div>
+
+      <div class="result-fields">
+        <div>
+          <div class="field-label">Supplier Order PN (auto-detected)</div>
+          <input type="text" id="supplierPnField" placeholder="e.g. 296-11602-1-ND" />
+        </div>
+        <div>
+          <div class="field-label">Description (auto-detected)</div>
+          <input type="text" id="descField" placeholder="e.g. IC GATE AND 1CH 2-INP SC70-5" />
+        </div>
+      </div>
+
+      <!-- Action panel shown after sheet lookup -->
+      <div id="invPanel" style="display:none"></div>
+
     </div>
-    <div style="margin-top:20px">
-      <div class="preview-label">Raw Claude Response</div>
-      <div id="ocrRaw" class="ocr-raw">No scan yet.</div>
-    </div>
+  </div>
+
+  <!-- ── SESSION HISTORY ── -->
+  <div class="card">
+    <div class="card-title">Session History</div>
+    <div id="historyWrap"><div class="empty-history">No scans yet this session.</div></div>
   </div>
 
 </div>
@@ -151,168 +205,378 @@
 <canvas id="cropCanvas"></canvas>
 
 <script>
-  let currentStream = null;
-  let API_KEY = sessionStorage.getItem("anthropic_key") || "";
+// ── State ──────────────────────────────────────────────────────────────────────
+let currentStream = null;
+let config = {};
+let sessionHistory = [];
+let currentScan = null;
 
-  window.addEventListener("DOMContentLoaded", () => {
-    if (API_KEY) {
-      document.getElementById("apiKeyInput").value = API_KEY;
-      document.getElementById("keyStatus").textContent = "✓ Key loaded from session.";
-      document.getElementById("keyStatus").style.color = "var(--accent)";
+// Sheet columns (1-indexed): A=PartNumber B=Supplier C=MfrPN D=Description E=Quantity F=LastUpdated
+const COL_PART    = "A"; // supplier order PN — used as primary key
+const COL_SUPPLIER= "B";
+const COL_MFRPN   = "C"; // manufacturer PN — what we search by
+const COL_DESC    = "D";
+const COL_QTY     = "E";
+const COL_DATE    = "F";
+const SEARCH_COL  = "C"; // search by manufacturer PN
+const SEARCH_IDX  = 2;   // 0-indexed position of MfrPN in row array
+
+const SCAN_REGION = { x: 0.15, y: 0.25, w: 0.70, h: 0.50 };
+
+// ── Config ─────────────────────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = JSON.parse(sessionStorage.getItem("inv_config") || "{}");
+  if (saved.anthropicKey)  document.getElementById("anthropicKey").value  = saved.anthropicKey;
+  if (saved.sheetsApiKey)  document.getElementById("sheetsApiKey").value  = saved.sheetsApiKey;
+  if (saved.spreadsheetId) document.getElementById("spreadsheetId").value = saved.spreadsheetId;
+  if (saved.sheetName)     document.getElementById("sheetName").value     = saved.sheetName;
+  if (saved.anthropicKey)  { config = saved; setConfigStatus("✓ Config loaded from session.", "var(--accent)"); }
+});
+
+function saveConfig() {
+  config = {
+    anthropicKey:  document.getElementById("anthropicKey").value.trim(),
+    sheetsApiKey:  document.getElementById("sheetsApiKey").value.trim(),
+    spreadsheetId: document.getElementById("spreadsheetId").value.trim(),
+    sheetName:     document.getElementById("sheetName").value.trim() || "Inventory"
+  };
+  if (!config.anthropicKey.startsWith("sk-ant-")) {
+    setConfigStatus("⚠ Anthropic key should start with sk-ant-", "var(--error)"); return;
+  }
+  sessionStorage.setItem("inv_config", JSON.stringify(config));
+  setConfigStatus("✓ Config saved.", "var(--accent)");
+}
+
+function setConfigStatus(msg, color) {
+  const el = document.getElementById("configStatus");
+  el.textContent = msg; el.style.color = color;
+}
+
+// ── Camera ─────────────────────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    if (currentStream) stopCamera();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    currentStream = stream;
+    document.getElementById("video").srcObject = stream;
+    setCamStatus("Camera started. Align the full label inside the green box, then press Scan Label.", "ok");
+  } catch (err) {
+    setCamStatus("Could not access camera: " + err.message, "err");
+  }
+}
+
+function stopCamera() {
+  if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
+  document.getElementById("video").srcObject = null;
+  setCamStatus("Camera stopped.", "");
+}
+
+// ── Capture & Extract ──────────────────────────────────────────────────────────
+async function captureAndExtract() {
+  if (!config.anthropicKey) { setCamStatus("⚠ Fill in and save your config first.", "err"); return; }
+
+  const video  = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const crop   = document.getElementById("cropCanvas");
+
+  if (!video.srcObject) { setCamStatus("Start the camera first.", "err"); return; }
+  const W = video.videoWidth, H = video.videoHeight;
+  if (!W || !H)          { setCamStatus("Camera not ready — wait a moment.", "err"); return; }
+
+  // Full frame snapshot
+  canvas.width = W; canvas.height = H;
+  canvas.getContext("2d").drawImage(video, 0, 0, W, H);
+  document.getElementById("snapshot").src = canvas.toDataURL("image/jpeg", 0.92);
+
+  // Crop scan region & scale up 3×
+  const bx = Math.floor(W * SCAN_REGION.x), by = Math.floor(H * SCAN_REGION.y);
+  const bw = Math.floor(W * SCAN_REGION.w), bh = Math.floor(H * SCAN_REGION.h);
+  crop.width = bw * 3; crop.height = bh * 3;
+  const cctx = crop.getContext("2d");
+  cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = "high";
+  cctx.drawImage(canvas, bx, by, bw, bh, 0, 0, crop.width, crop.height);
+
+  // Gentle contrast boost
+  const imgData = cctx.getImageData(0, 0, crop.width, crop.height);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = Math.max(0, Math.min(255, (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2] - 128) * 1.4 + 128));
+    d[i] = d[i+1] = d[i+2] = g;
+  }
+  cctx.putImageData(imgData, 0, 0);
+
+  const cropUrl = crop.toDataURL("image/jpeg", 0.95);
+  document.getElementById("cropPreview").src = cropUrl;
+
+  // Reset UI
+  document.getElementById("mfrPnOutput").textContent = "…";
+  document.getElementById("mfrPnOutput").className = "part-big empty";
+  document.getElementById("supplierBadge").innerHTML = "";
+  document.getElementById("supplierPnField").value = "";
+  document.getElementById("descField").value = "";
+  document.getElementById("dateDisplay").textContent = "—";
+  document.getElementById("invPanel").style.display = "none";
+
+  await extractWithClaude(cropUrl);
+}
+
+// ── Claude Vision ──────────────────────────────────────────────────────────────
+async function extractWithClaude(dataUrl) {
+  setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…', "loading");
+
+  const base64 = dataUrl.split(",")[1];
+
+  const prompt = `You are an electronics component label reader. Look at this label carefully.
+
+Return ONLY a valid JSON object with no markdown, no explanation, no backticks:
+{
+  "mfrPartNumber": "the manufacturer part number (e.g. SN74LVC1G08DCKR, CL10A105KA8N). This is usually labeled MFR PN, Mfr#, or appears next to the manufacturer name.",
+  "supplierPartNumber": "the supplier order part number (e.g. 296-11602-1-ND for DigiKey, 595-SN74LVC1G08DCKR for Mouser). Usually labeled PN or P/N.",
+  "supplier": "DigiKey or Mouser or Octopart or Unknown",
+  "description": "component description if visible, else empty string"
+}
+
+If you cannot find the manufacturer part number, set mfrPartNumber to NOT_FOUND.
+Return only raw JSON.`;
+
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": config.anthropicKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 250,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+          { type: "text", text: prompt }
+        ]}]
+      })
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) {
+      setCamStatus("API error: " + (data?.error?.message || "Unknown error"), "err"); return;
     }
-  });
 
-  function saveKey() {
-    const val = document.getElementById("apiKeyInput").value.trim();
-    if (!val.startsWith("sk-ant-")) {
-      document.getElementById("keyStatus").textContent = "⚠ Key should start with sk-ant-";
-      document.getElementById("keyStatus").style.color = "var(--error)";
+    const raw = (data.content || []).map(b => b.text || "").join("").trim();
+
+    let parsed;
+    try { parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()); }
+    catch { setCamStatus("Could not parse Claude response. Try scanning again.", "err"); return; }
+
+    if (!parsed.mfrPartNumber || parsed.mfrPartNumber === "NOT_FOUND") {
+      setCamStatus("No manufacturer part number found. Reposition label and try again.", "err");
+      document.getElementById("mfrPnOutput").textContent = "Not found";
       return;
     }
-    API_KEY = val;
-    sessionStorage.setItem("anthropic_key", val);
-    document.getElementById("keyStatus").textContent = "✓ Key saved for this session.";
-    document.getElementById("keyStatus").style.color = "var(--accent)";
+
+    const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    currentScan = { ...parsed, date: today };
+
+    document.getElementById("mfrPnOutput").textContent = parsed.mfrPartNumber;
+    document.getElementById("mfrPnOutput").className = "part-big";
+    document.getElementById("dateDisplay").textContent = today;
+    document.getElementById("supplierPnField").value = parsed.supplierPartNumber || "";
+    document.getElementById("descField").value = parsed.description || "";
+    showSupplierBadge(parsed.supplier);
+
+    setCamStatus("✓ Label read. Checking inventory…", "ok");
+    await lookupInSheet(parsed.mfrPartNumber);
+
+  } catch (err) {
+    setCamStatus("Network error: " + err.message, "err");
+  }
+}
+
+function showSupplierBadge(supplier) {
+  const map = { DigiKey: "badge-digikey", Mouser: "badge-mouser", Octopart: "badge-octopart" };
+  const cls = map[supplier] || "badge-unknown";
+  document.getElementById("supplierBadge").innerHTML =
+    `<span class="supplier-badge ${cls}">${supplier || "Unknown"}</span>`;
+}
+
+// ── Google Sheets Lookup ───────────────────────────────────────────────────────
+// Sheet columns: A=PartNumber(supplier PN), B=Supplier, C=MfrPN, D=Description, E=Quantity, F=LastUpdated
+async function lookupInSheet(mfrPartNumber) {
+  if (!config.sheetsApiKey || !config.spreadsheetId) {
+    showInvPanel(null, -1);
+    setCamStatus("✓ Label read. Add your Sheets API key to sync inventory.", "warn");
+    return;
   }
 
-  const SCAN_REGION = { x: 0.26, y: 0.37, w: 0.50, h: 0.18 };
+  const range = encodeURIComponent(`${config.sheetName}!A:F`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}?key=${config.sheetsApiKey}`;
 
-  async function startCamera() {
-    try {
-      if (currentStream) stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false
-      });
-      currentStream = stream;
-      document.getElementById("video").srcObject = stream;
-      setStatus("Camera started. Align the PN row inside the green box, then press Scan & Extract.", "ok");
-    } catch (err) {
-      setStatus("Could not access camera: " + err.message, "err");
+  try {
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      const msg = data?.error?.message || "Check your Sheets API key and Spreadsheet ID";
+      setCamStatus("Sheets error: " + msg, "err");
+      showInvPanel(null, -1); return;
     }
-  }
 
-  function stopCamera() {
-    if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
-    document.getElementById("video").srcObject = null;
-    setStatus("Camera stopped.", "");
-  }
-
-  async function captureAndExtract() {
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const crop = document.getElementById("cropCanvas");
-
-    if (!video.srcObject) { setStatus("Start the camera first.", "err"); return; }
-    const W = video.videoWidth, H = video.videoHeight;
-    if (!W || !H) { setStatus("Camera not ready yet — wait a moment.", "err"); return; }
-
-    canvas.width = W; canvas.height = H;
-    canvas.getContext("2d").drawImage(video, 0, 0, W, H);
-    document.getElementById("snapshot").src = canvas.toDataURL("image/jpeg", 0.92);
-
-    const bx = Math.floor(W * SCAN_REGION.x);
-    const by = Math.floor(H * SCAN_REGION.y);
-    const bw = Math.floor(W * SCAN_REGION.w);
-    const bh = Math.floor(H * SCAN_REGION.h);
-
-    const scale = 3;
-    crop.width = bw * scale; crop.height = bh * scale;
-    const cctx = crop.getContext("2d");
-    cctx.imageSmoothingEnabled = true;
-    cctx.imageSmoothingQuality = "high";
-    cctx.drawImage(canvas, bx, by, bw, bh, 0, 0, crop.width, crop.height);
-
-    const img = cctx.getImageData(0, 0, crop.width, crop.height);
-    const d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-      const boosted = Math.max(0, Math.min(255, (gray - 128) * 1.4 + 128));
-      d[i] = d[i+1] = d[i+2] = boosted;
-    }
-    cctx.putImageData(img, 0, 0);
-
-    const cropDataUrl = crop.toDataURL("image/jpeg", 0.95);
-    document.getElementById("cropPreview").src = cropDataUrl;
-    await extractWithClaude(cropDataUrl);
-  }
-
-  async function extractWithClaude(dataUrl) {
-    if (!API_KEY) { setStatus("⚠ Enter and save your Anthropic API key first.", "err"); return; }
-
-    setStatus('<span class="spinner"></span>Sending to Claude Vision…', "loading");
-    document.getElementById("partNumberOutput").textContent = "…";
-    document.getElementById("ocrRaw").textContent = "Waiting for Claude…";
-
-    const base64 = dataUrl.split(",")[1];
-    const prompt = `You are a part-number extraction assistant for industrial labels.
-The image shows a cropped label region. Your ONLY job is to find and return the part number.
-The part number format is exactly: NNN-NNNNN-N-ND
-Example: 296-11602-1-ND
-Rules:
-- Return ONLY the part number string, nothing else. No explanation, no punctuation, no quotes.
-- If you see something like "PN 296-11602-1-ND" or "P/N: 296-11602-1-ND", return only "296-11602-1-ND".
-- The last two characters are always "ND".
-- If you cannot find a part number, return exactly: NOT_FOUND`;
-
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": API_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 100,
-          messages: [{ role: "user", content: [
-            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
-            { type: "text", text: prompt }
-          ]}]
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        const errMsg = data?.error?.message || JSON.stringify(data);
-        setStatus("API error: " + errMsg, "err");
-        document.getElementById("ocrRaw").textContent = errMsg;
-        document.getElementById("partNumberOutput").textContent = "—";
-        document.getElementById("partNumberOutput").className = "part-number empty";
-        return;
+    const rows = data.values || [];
+    // Row 0 is header, search from row 1
+    // Column C (index 2) = MfrPN
+    let foundRow = null, foundRowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      const cellMfrPn = (rows[i][2] || "").trim().toUpperCase();
+      if (cellMfrPn === mfrPartNumber.trim().toUpperCase()) {
+        foundRow = rows[i];
+        foundRowIndex = i + 1; // 1-indexed for Sheets API
+        break;
       }
-
-      const raw = (data.content || []).map(b => b.text || "").join("").trim();
-      document.getElementById("ocrRaw").textContent = raw;
-
-      if (!raw || raw === "NOT_FOUND") {
-        document.getElementById("partNumberOutput").textContent = "Not found — adjust label and retry";
-        document.getElementById("partNumberOutput").className = "part-number empty";
-        setStatus("No part number detected. Try repositioning the label.", "err");
-      } else {
-        document.getElementById("partNumberOutput").textContent = raw;
-        document.getElementById("partNumberOutput").className = "part-number";
-        document.getElementById("manualPartNumber").value = raw;
-        setStatus("✓ Part number extracted: " + raw, "ok");
-      }
-    } catch (err) {
-      setStatus("Network error: " + err.message, "err");
-      document.getElementById("ocrRaw").textContent = err.message;
     }
+
+    showInvPanel(foundRow, foundRowIndex);
+    if (foundRow) {
+      setCamStatus(`✓ Found in sheet (row ${foundRowIndex}). Current stock: ${foundRow[4] || 0} units.`, "ok");
+    } else {
+      setCamStatus(`✓ Label read. "${mfrPartNumber}" not in inventory yet — add it below.`, "warn");
+    }
+
+  } catch (err) {
+    setCamStatus("Sheets lookup failed: " + err.message, "err");
+    showInvPanel(null, -1);
+  }
+}
+
+// ── Inventory Action Panel ─────────────────────────────────────────────────────
+function showInvPanel(existingRow, rowIndex) {
+  const panel = document.getElementById("invPanel");
+  panel.style.display = "block";
+
+  if (!config.sheetsApiKey || !config.spreadsheetId) {
+    panel.className = "inv-panel nosheet";
+    panel.innerHTML = `
+      <div class="inv-title nosheet">Google Sheets Not Configured</div>
+      <div class="inv-info" style="color:var(--muted)">Add your Sheets API key and Spreadsheet ID in the config above to enable inventory sync.</div>`;
+    return;
   }
 
-  function setStatus(msg, type) {
-    const el = document.getElementById("status");
-    el.innerHTML = msg;
-    el.className = "status" + (type ? " " + type : "");
+  if (existingRow) {
+    const currentQty = parseInt(existingRow[4] || "0");
+    panel.className = "inv-panel found";
+    panel.innerHTML = `
+      <div class="inv-title found">✓ Part Found in Inventory</div>
+      <div class="inv-info">
+        Description: <b>${existingRow[3] || "—"}</b><br>
+        Supplier: <b>${existingRow[1] || "—"}</b><br>
+        Current Stock: <b style="color:var(--accent);font-size:16px">${currentQty} units</b><br>
+        Last Updated: <b>${existingRow[5] || "—"}</b>
+      </div>
+      <div class="qty-row">
+        <div>
+          <div class="field-label">Quantity to Add</div>
+          <input type="number" id="qtyInput" value="1" min="1" />
+        </div>
+        <button class="btn-success" onclick="updateStock(${rowIndex}, ${currentQty})">+ Add to Stock</button>
+      </div>`;
+  } else {
+    panel.className = "inv-panel notfound";
+    panel.innerHTML = `
+      <div class="inv-title notfound">＋ New Part — Not in Inventory</div>
+      <div class="inv-info">This manufacturer PN was not found in your sheet.<br>Check the details above are correct, then add it.</div>
+      <div class="qty-row">
+        <div>
+          <div class="field-label">Initial Quantity</div>
+          <input type="number" id="qtyInput" value="1" min="1" />
+        </div>
+        <button class="btn-primary" onclick="addNewRow()">Add to Inventory</button>
+      </div>`;
   }
+}
 
-  function copyPN() {
-    const val = document.getElementById("manualPartNumber").value || document.getElementById("partNumberOutput").textContent;
-    if (val && val !== "—") navigator.clipboard.writeText(val).then(() => setStatus("Copied: " + val, "ok"));
-  }
+// ── Add New Row ────────────────────────────────────────────────────────────────
+async function addNewRow() {
+  if (!currentScan) return;
+  const qty     = parseInt(document.getElementById("qtyInput").value) || 1;
+  const desc    = document.getElementById("descField").value.trim();
+  const suppPn  = document.getElementById("supplierPnField").value.trim();
+
+  // Row: PartNumber(supplier PN) | Supplier | MfrPN | Description | Quantity | LastUpdated
+  const row = [suppPn, currentScan.supplier, currentScan.mfrPartNumber, desc, qty, currentScan.date];
+
+  const range = encodeURIComponent(`${config.sheetName}!A:F`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&key=${config.sheetsApiKey}`;
+
+  try {
+    setCamStatus('<span class="spinner"></span>Adding to Google Sheets…', "loading");
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [row] })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { setCamStatus("Sheets error: " + (data?.error?.message || "Unknown"), "err"); return; }
+
+    setCamStatus(`✓ Added "${currentScan.mfrPartNumber}" × ${qty} to inventory.`, "ok");
+    addToHistory(currentScan.mfrPartNumber, currentScan.supplier, qty, "New Part Added", currentScan.date);
+    document.getElementById("invPanel").style.display = "none";
+
+  } catch (err) { setCamStatus("Write failed: " + err.message, "err"); }
+}
+
+// ── Add Stock to Existing Row ──────────────────────────────────────────────────
+async function updateStock(rowIndex, currentQty) {
+  const delta  = parseInt(document.getElementById("qtyInput").value) || 1;
+  const newQty = currentQty + delta;
+  const today  = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+  // Update only columns E (Quantity) and F (LastUpdated)
+  const range = encodeURIComponent(`${config.sheetName}!E${rowIndex}:F${rowIndex}`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED&key=${config.sheetsApiKey}`;
+
+  try {
+    setCamStatus('<span class="spinner"></span>Updating Google Sheets…', "loading");
+    const resp = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[newQty, today]] })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { setCamStatus("Sheets error: " + (data?.error?.message || "Unknown"), "err"); return; }
+
+    setCamStatus(`✓ Stock updated: ${currentQty} → ${newQty} units.`, "ok");
+    addToHistory(currentScan.mfrPartNumber, currentScan.supplier, delta, "Stock Added", today);
+    document.getElementById("invPanel").style.display = "none";
+
+  } catch (err) { setCamStatus("Update failed: " + err.message, "err"); }
+}
+
+// ── Session History ────────────────────────────────────────────────────────────
+function addToHistory(mfrPn, supplier, qty, action, date) {
+  sessionHistory.unshift({ mfrPn, supplier, qty, action, date });
+  const wrap = document.getElementById("historyWrap");
+  wrap.innerHTML = `
+    <table class="history-table">
+      <thead><tr>
+        <th>Mfr Part Number</th><th>Supplier</th><th>Action</th><th>Qty</th><th>Date</th>
+      </tr></thead>
+      <tbody>
+        ${sessionHistory.map(h => `<tr>
+          <td>${h.mfrPn}</td><td>${h.supplier}</td><td>${h.action}</td><td>${h.qty}</td><td>${h.date}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function setCamStatus(msg, type) {
+  const el = document.getElementById("camStatus");
+  el.innerHTML = msg;
+  el.className = "status" + (type ? " " + type : "");
+}
 </script>
 </body>
 </html>
