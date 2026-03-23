@@ -296,8 +296,12 @@
           <img id="cropPreview" class="preview" alt="" style="margin-bottom:14px" />
 
           <div class="preview-label">Detected Part</div>
-          <div id="scanMfrPn" class="result-pn empty">—</div>
-          <div id="scanSupplierBadge" style="margin:6px 0 10px"></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+            <input type="text" id="scanMfrPn" placeholder="Manufacturer PN" style="font-family:var(--mono);font-size:16px;font-weight:500;color:var(--accent);flex:1;padding:8px 12px;border:2px solid var(--border2);border-radius:8px;outline:none;" oninput="this.style.borderColor='var(--warn)'" />
+            <button class="btn btn-secondary" onclick="recheckMfrPn()" title="Re-check inventory with edited PN" style="white-space:nowrap;padding:8px 12px;font-size:12px">🔍 Re-check</button>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">✏️ Edit if Claude misread a character, then click Re-check</div>
+          <div id="scanSupplierBadge" style="margin:4px 0 10px"></div>
 
           <div class="form-grid" style="margin-bottom:10px">
             <div class="field">
@@ -703,8 +707,8 @@ async function captureAndExtract() {
   document.getElementById("cropPreview").src = crop.toDataURL("image/jpeg", 0.95);
 
   // Reset
-  document.getElementById("scanMfrPn").textContent = "…";
-  document.getElementById("scanMfrPn").className = "result-pn empty";
+  document.getElementById("scanMfrPn").value = "";
+  document.getElementById("scanMfrPn").style.borderColor = "var(--border2)";
   document.getElementById("scanSupplierBadge").innerHTML = "";
   document.getElementById("scanSupplierPn").value = "";
   document.getElementById("scanDesc").value = "";
@@ -752,17 +756,17 @@ Set mfrPartNumber to NOT_FOUND if not visible.`;
 
     if (!parsed.mfrPartNumber || parsed.mfrPartNumber === "NOT_FOUND") {
       setCamStatus("No part number found. Reposition and try again.", "err");
-      document.getElementById("scanMfrPn").textContent = "Not found"; return;
+      document.getElementById("scanMfrPn").value = ""; return;
     }
 
     const today = todayStr();
     currentScan = { ...parsed, date: today };
-    document.getElementById("scanMfrPn").textContent = parsed.mfrPartNumber;
-    document.getElementById("scanMfrPn").className = "result-pn";
+    document.getElementById("scanMfrPn").value = parsed.mfrPartNumber;
+    document.getElementById("scanMfrPn").style.borderColor = "var(--accent)";
     document.getElementById("scanSupplierPn").value = parsed.supplierPartNumber || "";
     document.getElementById("scanDesc").value = parsed.description || "";
     showSupplierBadge("scanSupplierBadge", parsed.supplier);
-    setCamStatus("✓ Label read. Checking inventory…", "ok");
+    setCamStatus("✓ Label read. Check the part number above — edit if needed, then check inventory.", "ok");
     await lookupForScan(parsed.mfrPartNumber);
   } catch(err) { setCamStatus("Network error: " + err.message, "err"); }
 }
@@ -771,6 +775,16 @@ function showSupplierBadge(elId, supplier) {
   const map = { DigiKey:"badge-digikey", Mouser:"badge-mouser", Octopart:"badge-octopart" };
   document.getElementById(elId).innerHTML =
     `<span class="supplier-badge ${map[supplier]||"badge-unknown"}">${supplier||"Unknown"}</span>`;
+}
+
+async function recheckMfrPn() {
+  const mfrPn = document.getElementById("scanMfrPn").value.trim();
+  if (!mfrPn) { setCamStatus("Enter a part number to check.", "err"); return; }
+  document.getElementById("scanMfrPn").style.borderColor = "var(--accent)";
+  if (currentScan) currentScan.mfrPartNumber = mfrPn;
+  else currentScan = { mfrPartNumber: mfrPn, supplier: "Unknown", supplierPartNumber: "", description: document.getElementById("scanDesc").value, date: todayStr() };
+  setCamStatus('<span class="spinner"></span>Checking inventory…', "loading");
+  await lookupForScan(mfrPn);
 }
 
 async function lookupForScan(mfrPn) {
