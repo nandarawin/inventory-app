@@ -416,8 +416,8 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Mfr Part Number</th><th>Supplier PN</th><th>Supplier</th><th>Description</th><th>Location</th><th>Quantity</th><th>Last Updated</th></tr></thead>
-        <tbody id="invTableBody"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
+        <thead><tr><th>Mfr Part Number</th><th>Supplier PN</th><th>Supplier</th><th>Description</th><th>Location</th><th>Quantity</th><th>Last Updated</th><th>Label</th></tr></thead>
+        <tbody id="invTableBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -469,13 +469,56 @@
   </div>
 </div>
 
+<!-- ── PRINT LABEL MODAL ── -->
+<div id="printModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:16px">🖨 Print Location Label</div>
+
+    <!-- Label Preview -->
+    <div id="labelPreview" style="border:2px dashed var(--border2);border-radius:10px;padding:16px;margin-bottom:18px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px">NEXWAH TECHNOLOGY</div>
+        <div id="lblQty" style="font-size:11px;font-weight:700;background:var(--accent-light);color:var(--accent);padding:2px 8px;border-radius:20px;font-family:var(--mono)"></div>
+      </div>
+      <div id="lblMfrPn" style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;word-break:break-all"></div>
+      <div id="lblSuppPn" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+      <div id="lblDesc" style="font-size:12px;color:var(--text);margin-bottom:12px;line-height:1.4"></div>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--accent);border-radius:6px;padding:8px 12px">
+        <div style="font-size:20px">📍</div>
+        <div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.7);font-weight:600;letter-spacing:1px">LOCATION</div>
+          <div id="lblLoc" style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;color:#fff"></div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:var(--muted);margin-top:8px;text-align:right" id="lblDate"></div>
+    </div>
+
+    <!-- Editable fields -->
+    <div class="form-grid" style="margin-bottom:16px">
+      <div class="field">
+        <label>Location</label>
+        <input type="text" id="printLocInput" oninput="document.getElementById('lblLoc').textContent=this.value||'—'" />
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="printQtyInput" oninput="document.getElementById('lblQty').textContent='QTY: '+(this.value||0)" />
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" style="flex:1" onclick="doPrint()">🖨 Print Label</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('printModal').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
 // ════════════════════════════════════════════════════════════
 // APPS SCRIPT URL — hardcoded, no need to change
 // ════════════════════════════════════════════════════════════
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybLBHKBoJR4ZaiOFx0me-2UXGZVTA85u0z41YtotqPSeWa9kPU8R6k2TJF16au6IWR/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzT_0t-lZbjvlLj7Qx3q8KPOtS7aEIHhNrUkVfQnuHkdtJrVov3vAPF_j8GsCOveo4m/exec";
 
 // ── State ──────────────────────────────────────────────────
 let cfg = { sheetName: "Sheet1", anthropicKey: "" };
@@ -621,7 +664,7 @@ async function loadDashboard() {
 async function renderInventory() {
   const search = (document.getElementById("invSearch").value || "").trim().toUpperCase();
   const tbody = document.getElementById("invTableBody");
-  tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><span class="spinner"></span>Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span class="spinner"></span>Loading…</td></tr>`;
   try {
     const rows = await sheetRead();
     let data = rows.slice(1);
@@ -632,12 +675,16 @@ async function renderInventory() {
       (r[5]||"").toUpperCase().includes(search)
     );
     data.sort((a,b) => (a[2]||"").localeCompare(b[2]||""));
-    if (!data.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No results.</td></tr>`; return; }
+    if (!data.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No results.</td></tr>`; return; }
     tbody.innerHTML = data.map(r => {
       const qty = parseInt(r[4]) || 0;
       const low = qty <= 5;
       const dateRaw = r[6] || "";
       const date = dateRaw ? new Date(dateRaw).toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"}) : "—";
+      const mfrPn = (r[2]||"").replace(/'/g, "\\'");
+      const suppPn = (r[0]||"").replace(/'/g, "\\'");
+      const desc = (r[3]||"").replace(/'/g, "\\'");
+      const loc = (r[5]||"").replace(/'/g, "\\'");
       return `<tr class="${low ? "low-stock" : ""}">
         <td class="mono">${r[2]||"—"}</td>
         <td class="mono">${r[0]||"—"}</td>
@@ -646,10 +693,11 @@ async function renderInventory() {
         <td>${r[5]||"—"}</td>
         <td class="mono" style="font-weight:600${low?";color:var(--error)":""}">${qty}</td>
         <td class="mono" style="color:var(--muted)">${date}</td>
+        <td><button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="printLabel('${mfrPn}','${suppPn}','${desc}','${loc}','${qty}')">🖨 Print</button></td>
       </tr>`;
     }).join("");
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--error)">Failed to load. Check config.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:var(--error)">Failed to load. Check config.</td></tr>`;
   }
 }
 
@@ -1175,6 +1223,71 @@ function parseCSVLine(line) {
   }
   result.push(current.trim());
   return result;
+}
+
+// ════════════════════════════════════════════════════════════
+// PRINT LABEL
+// ════════════════════════════════════════════════════════════
+function printLabel(mfrPn, suppPn, desc, location, qty) {
+  document.getElementById("lblMfrPn").textContent  = mfrPn || "—";
+  document.getElementById("lblSuppPn").textContent = suppPn ? `PN: ${suppPn}` : "";
+  document.getElementById("lblDesc").textContent   = desc || "—";
+  document.getElementById("lblLoc").textContent    = location || "—";
+  document.getElementById("lblQty").textContent    = `QTY: ${qty || 0}`;
+  document.getElementById("lblDate").textContent   = `Printed: ${todayStr()}`;
+  document.getElementById("printLocInput").value   = location || "";
+  document.getElementById("printQtyInput").value   = qty || 0;
+  document.getElementById("printModal").style.display = "flex";
+}
+
+function doPrint() {
+  const label = document.getElementById("labelPreview");
+  const win = window.open("", "_blank", "width=400,height=320");
+  win.document.write(`
+    <!DOCTYPE html><html><head>
+    <title>Label</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;600&display=swap');
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'IBM Plex Sans', sans-serif; padding: 12px; width: 350px; }
+      @media print {
+        @page { size: 90mm 50mm; margin: 0; }
+        body { padding: 4mm; width: 90mm; }
+      }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+      .company { font-size: 8px; font-weight: 700; color: #888; letter-spacing: 1px; }
+      .qty-badge { font-size: 10px; font-weight: 700; background: #ebf0ff; color: #1a56db; padding: 2px 8px; border-radius: 20px; font-family: 'IBM Plex Mono', monospace; }
+      .mfrpn { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700; color: #111; margin-bottom: 2px; word-break: break-all; }
+      .supppn { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #888; margin-bottom: 6px; }
+      .desc { font-size: 10px; color: #333; margin-bottom: 10px; line-height: 1.4; }
+      .location-box { display: flex; align-items: center; gap: 8px; background: #1a56db; border-radius: 6px; padding: 6px 10px; }
+      .pin { font-size: 16px; }
+      .loc-label { font-size: 7px; color: rgba(255,255,255,0.7); font-weight: 600; letter-spacing: 1px; }
+      .loc-value { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: #fff; }
+      .footer { font-size: 7px; color: #aaa; margin-top: 6px; text-align: right; }
+    </style>
+    </head><body>
+    <div class="header">
+      <div class="company">NEXWAH TECHNOLOGY</div>
+      <div class="qty-badge">${document.getElementById("lblQty").textContent}</div>
+    </div>
+    <div class="mfrpn">${document.getElementById("lblMfrPn").textContent}</div>
+    <div class="supppn">${document.getElementById("lblSuppPn").textContent}</div>
+    <div class="desc">${document.getElementById("lblDesc").textContent}</div>
+    <div class="location-box">
+      <div class="pin">📍</div>
+      <div>
+        <div class="loc-label">LOCATION</div>
+        <div class="loc-value">${document.getElementById("lblLoc").textContent}</div>
+      </div>
+    </div>
+    <div class="footer">${document.getElementById("lblDate").textContent}</div>
+    <script>window.onload=()=>{window.print();window.close();}<\/script>
+    </body></html>
+  `);
+  win.document.close();
+  document.getElementById("printModal").style.display = "none";
+  toast("Label sent to printer!");
 }
 
 // ════════════════════════════════════════════════════════════
