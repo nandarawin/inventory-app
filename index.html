@@ -242,7 +242,7 @@
   <button class="nav-btn" onclick="showPage('bom')">Upload BOM</button>
   <button class="nav-btn" onclick="showPage('inventory')">Inventory</button>
   <button class="nav-btn" onclick="showPage('transactions')">Transactions</button>
-  <button class="nav-btn" onclick="showPage('config')">Config</button>
+
 </div>
 
 <div class="page-wrap">
@@ -411,43 +411,7 @@
     </div>
   </div>
 
-  <!-- ══ CONFIG ══ -->
-  <div id="page-config" class="page">
-    <div class="card">
-      <div class="card-title">Configuration</div>
-      <div class="config-note">
-        <b>Apps Script URL</b> is already set in the code.<br>
-        Just enter your <b>Anthropic API Key</b> and the <b>Sheet Tab Name</b> below.
-      </div>
-      <div class="form-grid">
-        <div class="field">
-          <label>Anthropic API Key</label>
-          <input type="password" id="cfgAnthropicKey" placeholder="sk-ant-..." />
-        </div>
-        <div class="field">
-          <label>Sheet Tab Name</label>
-          <input type="text" id="cfgSheetName" placeholder="Inventory" value="Inventory" />
-          <div class="hint">Must match the tab name at the bottom of your Google Sheet exactly</div>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="saveConfig()">Save Config</button>
-        <span id="cfgStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono);align-self:center">Not saved.</span>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Sheet Structure</div>
-      <div class="config-note" style="margin-bottom:0">
-        Your Google Sheet should have these headers in <b>Row 1</b>:<br><br>
-        <span style="font-family:var(--mono);font-size:12px">
-          A: PartNumber (Supplier PN) &nbsp;|&nbsp; B: Supplier &nbsp;|&nbsp;
-          C: MfrPN &nbsp;|&nbsp; D: Description &nbsp;|&nbsp; E: Quantity &nbsp;|&nbsp; F: LastUpdated
-        </span>
-        <br><br>
-        The scanner searches by <b>Column C (MfrPN)</b> and updates <b>Column E (Quantity)</b>.
-      </div>
-    </div>
-  </div>
+
 
 </div><!-- /page-wrap -->
 
@@ -460,7 +424,10 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWe8E5gcQNfJMmZwxEIt59vCMYE0kuzi4aazhyya_S3JKZx4uEBhZ5X50ZMlauRis6/exec";
 
 // ── State ──────────────────────────────────────────────────
-let cfg = {};
+const cfg = {
+  anthropicKey: "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",
+  sheetName: "Inventory"
+};
 let currentStream = null;
 let currentScan = null;
 const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
@@ -469,14 +436,6 @@ const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
 // INIT
 // ════════════════════════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", () => {
-  const saved = JSON.parse(sessionStorage.getItem("nexwah_cfg") || "{}");
-  if (saved.anthropicKey) document.getElementById("cfgAnthropicKey").value = saved.anthropicKey;
-  if (saved.sheetName)    document.getElementById("cfgSheetName").value    = saved.sheetName;
-  if (saved.anthropicKey) {
-    cfg = saved;
-    document.getElementById("cfgStatus").textContent = "✓ Loaded from session.";
-    document.getElementById("cfgStatus").style.color = "var(--success)";
-  }
   loadDashboard();
 });
 
@@ -491,24 +450,6 @@ function showPage(name) {
   if (name === "inventory")    renderInventory();
   if (name === "transactions") renderTransactions();
   if (name === "dashboard")    loadDashboard();
-}
-
-// ════════════════════════════════════════════════════════════
-// CONFIG
-// ════════════════════════════════════════════════════════════
-function saveConfig() {
-  cfg = {
-    anthropicKey: document.getElementById("cfgAnthropicKey").value.trim(),
-    sheetName:    document.getElementById("cfgSheetName").value.trim() || "Inventory"
-  };
-  if (!cfg.anthropicKey.startsWith("sk-ant-")) {
-    document.getElementById("cfgStatus").textContent = "⚠ Key should start with sk-ant-";
-    document.getElementById("cfgStatus").style.color = "var(--error)"; return;
-  }
-  sessionStorage.setItem("nexwah_cfg", JSON.stringify(cfg));
-  document.getElementById("cfgStatus").textContent = "✓ Saved.";
-  document.getElementById("cfgStatus").style.color = "var(--success)";
-  toast("Config saved.");
 }
 
 // ════════════════════════════════════════════════════════════
