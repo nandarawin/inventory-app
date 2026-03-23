@@ -415,6 +415,32 @@
 
 </div><!-- /page-wrap -->
 
+<!-- ── API KEY MODAL ── -->
+<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="font-family:var(--mono);font-size:18px;font-weight:500;color:var(--accent);margin-bottom:8px">NEXWAH / Inventory</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">
+      Enter your Anthropic API key to enable label scanning.<br>
+      It will be saved in this browser — you won't need to enter it again.
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:5px">Anthropic API Key</div>
+      <input type="password" id="modalKeyInput" placeholder="sk-ant-..."
+        style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;font-family:var(--mono);font-size:13px;outline:none;"
+        onkeydown="if(event.key==='Enter') saveModalKey()" />
+    </div>
+    <button onclick="saveModalKey()" style="width:100%;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)">
+      Save &amp; Continue
+    </button>
+    <div id="modalError" style="color:var(--error);font-size:12px;margin-top:10px;display:none">
+      Key should start with sk-ant- — please check and try again.
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:14px;text-align:center">
+      Get your key at <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--accent)">console.anthropic.com/keys</a>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -424,10 +450,7 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWe8E5gcQNfJMmZwxEIt59vCMYE0kuzi4aazhyya_S3JKZx4uEBhZ5X50ZMlauRis6/exec";
 
 // ── State ──────────────────────────────────────────────────
-const cfg = {
-  anthropicKey: "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",
-  sheetName: "Sheet1"
-};
+let cfg = { sheetName: "Sheet1", anthropicKey: "" };
 let currentStream = null;
 let currentScan = null;
 const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
@@ -436,8 +459,31 @@ const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
 // INIT
 // ════════════════════════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", () => {
-  loadDashboard();
+  const savedKey = localStorage.getItem("nexwah_anthropic_key");
+  if (savedKey) {
+    cfg.anthropicKey = savedKey;
+    loadDashboard();
+  } else {
+    showKeyModal();
+  }
 });
+
+function showKeyModal() {
+  document.getElementById("keyModal").style.display = "flex";
+  setTimeout(() => document.getElementById("modalKeyInput").focus(), 100);
+}
+
+function saveModalKey() {
+  const val = document.getElementById("modalKeyInput").value.trim();
+  if (!val.startsWith("sk-ant-")) {
+    document.getElementById("modalError").style.display = "block"; return;
+  }
+  cfg.anthropicKey = val;
+  localStorage.setItem("nexwah_anthropic_key", val);
+  document.getElementById("keyModal").style.display = "none";
+  loadDashboard();
+  toast("API key saved. Welcome to NEXWAH Inventory!");
+}
 
 // ════════════════════════════════════════════════════════════
 // NAV
