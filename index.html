@@ -636,6 +636,8 @@ async function renderInventory() {
     tbody.innerHTML = data.map(r => {
       const qty = parseInt(r[5]) || 0;
       const low = qty <= 5;
+      const dateRaw = r[6] || "";
+      const date = dateRaw ? new Date(dateRaw).toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"}) : "—";
       return `<tr class="${low ? "low-stock" : ""}">
         <td class="mono">${r[2]||"—"}</td>
         <td class="mono">${r[0]||"—"}</td>
@@ -643,7 +645,7 @@ async function renderInventory() {
         <td>${r[3]||"—"}</td>
         <td>${r[4]||"—"}</td>
         <td class="mono" style="font-weight:600${low?";color:var(--error)":""}">${qty}</td>
-        <td class="mono" style="color:var(--muted)">${r[6]||"—"}</td>
+        <td class="mono" style="color:var(--muted)">${date}</td>
       </tr>`;
     }).join("");
   } catch(e) {
@@ -665,8 +667,11 @@ async function renderTransactions() {
     let data = rows.slice(1).reverse();
     if (search) data = data.filter(r => r.some(c => (c||"").toString().toUpperCase().includes(search)));
     if (!data.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No transactions yet.</td></tr>`; return; }
-    tbody.innerHTML = data.map(r => `<tr>
-      <td class="mono" style="color:var(--muted)">${r[0]||"—"}</td>
+    tbody.innerHTML = data.map(r => {
+      const dateRaw = r[0] || "";
+      const date = dateRaw ? new Date(dateRaw).toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"}) : "—";
+      return `<tr>
+      <td class="mono" style="color:var(--muted)">${date}</td>
       <td class="mono">${r[1]||"—"}</td>
       <td>${r[2]||"—"}</td>
       <td><span class="badge badge-${(r[3]||"").toLowerCase()}">${r[3]||"—"}</span></td>
@@ -674,7 +679,8 @@ async function renderTransactions() {
       <td class="mono">${r[5]||"—"}</td>
       <td class="mono">${r[6]||"—"}</td>
       <td style="color:var(--muted)">${r[7]||"—"}</td>
-    </tr>`).join("");
+    </tr>`;
+    }).join("");
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:var(--error)">Could not load transactions sheet.</td></tr>`;
   }
