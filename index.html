@@ -274,7 +274,23 @@
   <!-- ══ SCANNER ══ -->
   <div id="page-scanner" class="page">
     <div class="card">
-      <div class="card-title">Scan Label — Receive Stock</div>
+      <div class="card-title">Scan Label</div>
+
+      <!-- Mode Toggle -->
+      <div style="display:flex;gap:0;margin-bottom:18px;border:1px solid var(--border2);border-radius:9px;overflow:hidden;width:fit-content">
+        <button id="modeReceive" onclick="setScanMode('receive')"
+          style="padding:9px 24px;font-size:13px;font-weight:600;font-family:var(--sans);border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">
+          📦 Receive
+        </button>
+        <button id="modeDispatch" onclick="setScanMode('dispatch')"
+          style="padding:9px 24px;font-size:13px;font-weight:600;font-family:var(--sans);border:none;cursor:pointer;background:var(--surface2);color:var(--muted);transition:all 0.15s">
+          🚚 Dispatch
+        </button>
+      </div>
+      <div id="scanModeLabel" style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        📦 <b>Receive mode</b> — scan incoming delivery labels to add stock
+      </div>
+
       <div class="scanner-layout">
         <div>
           <div class="video-wrap">
@@ -312,6 +328,14 @@
               <label>Description</label>
               <input type="text" id="scanDesc" placeholder="auto-detected" />
             </div>
+            <div class="field" id="scanLocationField">
+              <label>Storage Location</label>
+              <input type="text" id="scanLocation" placeholder="e.g. Shelf A3, Bin 2" />
+            </div>
+            <div class="field">
+              <label>Notes (optional)</label>
+              <input type="text" id="scanNotes" placeholder="e.g. Project BOM-001" />
+            </div>
           </div>
 
           <div id="scanInvPanel" style="display:none"></div>
@@ -345,6 +369,10 @@
         <div class="field">
           <label>Notes (optional)</label>
           <input type="text" id="manualNotes" placeholder="e.g. Used in BOM-001" />
+        </div>
+        <div class="field">
+          <label>Location (optional)</label>
+          <input type="text" id="manualLocation" placeholder="e.g. Shelf A3, Bin 2" />
         </div>
       </div>
       <div class="btn-row">
@@ -388,8 +416,8 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Mfr Part Number</th><th>Supplier PN</th><th>Supplier</th><th>Description</th><th>Quantity</th><th>Last Updated</th></tr></thead>
-        <tbody id="invTableBody"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
+        <thead><tr><th>Mfr Part Number</th><th>Supplier PN</th><th>Supplier</th><th>Description</th><th>Location</th><th>Quantity</th><th>Last Updated</th></tr></thead>
+        <tbody id="invTableBody"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -447,7 +475,7 @@
 // ════════════════════════════════════════════════════════════
 // APPS SCRIPT URL — hardcoded, no need to change
 // ════════════════════════════════════════════════════════════
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWe8E5gcQNfJMmZwxEIt59vCMYE0kuzi4aazhyya_S3JKZx4uEBhZ5X50ZMlauRis6/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybLBHKBoJR4ZaiOFx0me-2UXGZVTA85u0z41YtotqPSeWa9kPU8R6k2TJF16au6IWR/exec";
 
 // ── State ──────────────────────────────────────────────────
 let cfg = { sheetName: "Sheet1", anthropicKey: "" };
@@ -502,19 +530,20 @@ function showPage(name) {
 // APPS SCRIPT HELPERS
 // ════════════════════════════════════════════════════════════
 async function sheetRead() {
-  const url = `${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(cfg.sheetName || "Inventory")}`;
+  const url = `${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(cfg.sheetName || "Sheet1")}`;
   const resp = await fetch(url);
-  return await resp.json(); // returns array of rows
+  return await resp.json();
 }
 
 async function sheetAppend(row) {
-  const url = `${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(cfg.sheetName || "Inventory")}&row=${encodeURIComponent(JSON.stringify(row))}`;
+  const url = `${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(cfg.sheetName || "Sheet1")}&row=${encodeURIComponent(JSON.stringify(row))}`;
   const resp = await fetch(url);
   return await resp.text();
 }
 
 async function sheetUpdate(rowIndex, qty, date) {
-  const url = `${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(cfg.sheetName || "Inventory")}&rowIndex=${rowIndex}&qty=${qty}&date=${encodeURIComponent(date)}`;
+  // Qty now in col F (6), LastUpdated in col G (7)
+  const url = `${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(cfg.sheetName || "Sheet1")}&rowIndex=${rowIndex}&qty=${qty}&date=${encodeURIComponent(date)}`;
   const resp = await fetch(url);
   return await resp.text();
 }
@@ -532,15 +561,15 @@ async function loadDashboard() {
   document.getElementById("topbarStatus").textContent = "Loading…";
   try {
     const rows = await sheetRead();
-    const data = rows.slice(1); // skip header
+    const data = rows.slice(1);
     const totalParts = data.length;
-    const totalQty   = data.reduce((s, r) => s + (parseInt(r[4]) || 0), 0);
-    const lowStock   = data.filter(r => (parseInt(r[4]) || 0) <= 5);
+    // Sheet cols: A=SupplierPN, B=Supplier, C=MfrPN, D=Description, E=Location, F=Quantity, G=LastUpdated
+    const totalQty   = data.reduce((s, r) => s + (parseInt(r[5]) || 0), 0);
+    const lowStock   = data.filter(r => (parseInt(r[5]) || 0) <= 5);
     document.getElementById("stat-parts").textContent = totalParts;
     document.getElementById("stat-qty").textContent   = totalQty;
     document.getElementById("stat-low").textContent   = lowStock.length;
 
-    // Recent transactions from Transactions sheet
     try {
       const txUrl = `${APPS_SCRIPT_URL}?action=read&sheet=Transactions`;
       const txResp = await fetch(txUrl);
@@ -554,26 +583,26 @@ async function loadDashboard() {
         tbody.innerHTML = txData.map(r => `<tr>
           <td class="mono">${r[0]||"—"}</td>
           <td class="mono">${r[1]||"—"}</td>
-          <td><span class="badge badge-${(r[2]||"").toLowerCase()}">${r[2]||"—"}</span></td>
-          <td class="mono">${r[3]||"—"}</td>
+          <td><span class="badge badge-${(r[3]||"").toLowerCase()}">${r[3]||"—"}</span></td>
           <td class="mono">${r[4]||"—"}</td>
+          <td class="mono">${r[6]||"—"}</td>
         </tr>`).join("");
       }
     } catch(e) {
       document.getElementById("stat-tx").textContent = "—";
     }
 
-    // Low stock alerts
     const lowEl = document.getElementById("lowStockList");
     if (!lowStock.length) {
       lowEl.innerHTML = `<div class="alert alert-success">✓ All parts have sufficient stock.</div>`;
     } else {
       lowEl.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>Mfr Part Number</th><th>Description</th><th>Stock</th></tr></thead>
+        <thead><tr><th>Mfr Part Number</th><th>Description</th><th>Location</th><th>Stock</th></tr></thead>
         <tbody>${lowStock.map(r => `<tr class="low-stock">
           <td class="mono">${r[2]||r[0]||"—"}</td>
           <td>${r[3]||"—"}</td>
-          <td class="mono" style="font-weight:600">${r[4]||0}</td>
+          <td>${r[4]||"—"}</td>
+          <td class="mono" style="font-weight:600">${r[5]||0}</td>
         </tr>`).join("")}</tbody>
       </table></div>`;
     }
@@ -587,31 +616,38 @@ async function loadDashboard() {
 
 // ════════════════════════════════════════════════════════════
 // INVENTORY PAGE
+// Sheet cols: A=SupplierPN B=Supplier C=MfrPN D=Description E=Location F=Quantity G=LastUpdated
 // ════════════════════════════════════════════════════════════
 async function renderInventory() {
   const search = (document.getElementById("invSearch").value || "").trim().toUpperCase();
   const tbody = document.getElementById("invTableBody");
-  tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><span class="spinner"></span>Loading…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><span class="spinner"></span>Loading…</td></tr>`;
   try {
     const rows = await sheetRead();
     let data = rows.slice(1);
-    if (search) data = data.filter(r => (r[0]||"").toUpperCase().includes(search) || (r[2]||"").toUpperCase().includes(search) || (r[3]||"").toUpperCase().includes(search));
+    if (search) data = data.filter(r =>
+      (r[0]||"").toUpperCase().includes(search) ||
+      (r[2]||"").toUpperCase().includes(search) ||
+      (r[3]||"").toUpperCase().includes(search) ||
+      (r[4]||"").toUpperCase().includes(search)
+    );
     data.sort((a,b) => (a[2]||"").localeCompare(b[2]||""));
-    if (!data.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No results.</td></tr>`; return; }
+    if (!data.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No results.</td></tr>`; return; }
     tbody.innerHTML = data.map(r => {
-      const qty = parseInt(r[4]) || 0;
+      const qty = parseInt(r[5]) || 0;
       const low = qty <= 5;
       return `<tr class="${low ? "low-stock" : ""}">
         <td class="mono">${r[2]||"—"}</td>
         <td class="mono">${r[0]||"—"}</td>
         <td>${r[1]||"—"}</td>
         <td>${r[3]||"—"}</td>
-        <td class="mono" style="font-weight:600${low?" ;color:var(--error)":""}">${qty}</td>
-        <td class="mono" style="color:var(--muted)">${r[5]||"—"}</td>
+        <td>${r[4]||"—"}</td>
+        <td class="mono" style="font-weight:600${low?";color:var(--error)":""}">${qty}</td>
+        <td class="mono" style="color:var(--muted)">${r[6]||"—"}</td>
       </tr>`;
     }).join("");
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color:var(--error)">Failed to load. Check config.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--error)">Failed to load. Check config.</td></tr>`;
   }
 }
 
@@ -642,6 +678,33 @@ async function renderTransactions() {
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:var(--error)">Could not load transactions sheet.</td></tr>`;
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// SCAN MODE TOGGLE
+// ════════════════════════════════════════════════════════════
+let scanMode = "receive";
+
+function setScanMode(mode) {
+  scanMode = mode;
+  const isReceive = mode === "receive";
+  document.getElementById("modeReceive").style.background  = isReceive ? "var(--accent)" : "var(--surface2)";
+  document.getElementById("modeReceive").style.color       = isReceive ? "#fff" : "var(--muted)";
+  document.getElementById("modeDispatch").style.background = !isReceive ? "#dc2626" : "var(--surface2)";
+  document.getElementById("modeDispatch").style.color      = !isReceive ? "#fff" : "var(--muted)";
+  document.getElementById("scanModeLabel").innerHTML = isReceive
+    ? "📦 <b>Receive mode</b> — scan incoming delivery labels to add stock"
+    : "🚚 <b>Dispatch mode</b> — scan components being taken out for a project";
+  document.getElementById("scanLocationField").style.display = isReceive ? "" : "none";
+  document.getElementById("scanInvPanel").style.display = "none";
+  document.getElementById("scanMfrPn").value = "";
+  document.getElementById("scanMfrPn").style.borderColor = "var(--border2)";
+  document.getElementById("scanSupplierBadge").innerHTML = "";
+  document.getElementById("scanSupplierPn").value = "";
+  document.getElementById("scanDesc").value = "";
+  document.getElementById("scanLocation").value = "";
+  document.getElementById("scanNotes").value = "";
+  setCamStatus("Mode changed. Scan a label.", "");
 }
 
 // ════════════════════════════════════════════════════════════
@@ -784,9 +847,15 @@ async function lookupForScan(mfrPn) {
       }
     }
     showScanInvPanel(foundRow, foundIdx);
-    setCamStatus(foundRow
-      ? `✓ Found in inventory. Current stock: ${foundRow[4]||0} units.`
-      : `"${mfrPn}" not in inventory yet — add it below.`, foundRow ? "ok" : "warn");
+    if (scanMode === "dispatch") {
+      setCamStatus(foundRow
+        ? `✓ Found — ${foundRow[5]||0} units in stock at ${foundRow[4]||"unknown location"}.`
+        : `"${mfrPn}" not found in inventory.`, foundRow ? "ok" : "err");
+    } else {
+      setCamStatus(foundRow
+        ? `✓ Found in inventory. Current stock: ${foundRow[5]||0} units at ${foundRow[4]||"no location"}.`
+        : `"${mfrPn}" not in inventory yet — add it below.`, foundRow ? "ok" : "warn");
+    }
   } catch(e) {
     setCamStatus("Sheet lookup failed: " + e.message, "err");
     showScanInvPanel(null, -1);
@@ -796,12 +865,40 @@ async function lookupForScan(mfrPn) {
 function showScanInvPanel(row, rowIdx) {
   const panel = document.getElementById("scanInvPanel");
   panel.style.display = "block";
+
+  if (scanMode === "dispatch") {
+    if (!row) {
+      panel.className = "inv-action notfound";
+      panel.innerHTML = `
+        <div class="inv-action-title">⚠ Part Not Found</div>
+        <div class="inv-action-info">This part is not in inventory. Cannot dispatch.</div>`;
+      return;
+    }
+    const qty = parseInt(row[5]||"0");
+    panel.className = "inv-action found";
+    panel.innerHTML = `
+      <div class="inv-action-title">🚚 Dispatch Stock</div>
+      <div class="inv-action-info">
+        Location: <b>${row[4]||"—"}</b><br>
+        Available Stock: <b style="color:var(--accent)">${qty} units</b>
+      </div>
+      <div class="qty-row">
+        <div class="field"><label>Qty to Dispatch</label><input type="number" id="scanQty" value="1" min="1" max="${qty}" /></div>
+        <button class="btn btn-danger" onclick="scanDispatch(${rowIdx}, ${qty})">🚚 Dispatch</button>
+      </div>`;
+    return;
+  }
+
+  // Receive mode
   if (row) {
-    const qty = parseInt(row[4]||"0");
+    const qty = parseInt(row[5]||"0");
     panel.className = "inv-action found";
     panel.innerHTML = `
       <div class="inv-action-title">✓ Part Found in Inventory</div>
-      <div class="inv-action-info">Stock: <b>${qty} units</b> &nbsp;|&nbsp; Last updated: ${row[5]||"—"}</div>
+      <div class="inv-action-info">
+        Location: <b>${row[4]||"—"}</b><br>
+        Stock: <b>${qty} units</b> &nbsp;|&nbsp; Last updated: ${row[6]||"—"}
+      </div>
       <div class="qty-row">
         <div class="field"><label>Qty to Add</label><input type="number" id="scanQty" value="1" min="1" /></div>
         <button class="btn btn-success" onclick="scanAddStock(${rowIdx}, ${qty})">+ Add Stock</button>
@@ -820,15 +917,17 @@ function showScanInvPanel(row, rowIdx) {
 
 async function scanAddNew() {
   if (!currentScan) return;
-  const qty    = parseInt(document.getElementById("scanQty").value)||1;
-  const desc   = document.getElementById("scanDesc").value.trim();
-  const suppPn = document.getElementById("scanSupplierPn").value.trim();
-  const row    = [suppPn, currentScan.supplier, currentScan.mfrPartNumber, desc, qty, currentScan.date];
+  const qty      = parseInt(document.getElementById("scanQty").value)||1;
+  const desc     = document.getElementById("scanDesc").value.trim();
+  const suppPn   = document.getElementById("scanSupplierPn").value.trim();
+  const location = document.getElementById("scanLocation").value.trim();
+  // Row: SupplierPN | Supplier | MfrPN | Description | Location | Quantity | LastUpdated
+  const row = [suppPn, currentScan.supplier, currentScan.mfrPartNumber, desc, location, qty, currentScan.date];
   setCamStatus('<span class="spinner"></span>Adding to sheet…', "loading");
   const res = await sheetAppend(row);
   if (res.trim() !== "ok") { setCamStatus("Sheet error: " + res, "err"); return; }
-  await sheetAppendTx([currentScan.date, currentScan.mfrPartNumber, currentScan.supplier, "Receive", qty, 0, qty, "Scanned"]);
-  setCamStatus(`✓ Added ${currentScan.mfrPartNumber} × ${qty}.`, "ok");
+  await sheetAppendTx([currentScan.date, currentScan.mfrPartNumber, currentScan.supplier, "Receive", qty, 0, qty, `Location: ${location||"—"}`]);
+  setCamStatus(`✓ Added ${currentScan.mfrPartNumber} × ${qty} at ${location||"no location"}.`, "ok");
   toast(`Added ${currentScan.mfrPartNumber} × ${qty}`);
   document.getElementById("scanInvPanel").style.display = "none";
 }
@@ -843,6 +942,23 @@ async function scanAddStock(rowIdx, currentQty) {
   await sheetAppendTx([today, currentScan.mfrPartNumber, currentScan.supplier, "Receive", delta, currentQty, newQty, "Scanned"]);
   setCamStatus(`✓ Stock: ${currentQty} → ${newQty} units.`, "ok");
   toast(`Updated ${currentScan.mfrPartNumber}: ${currentQty} → ${newQty}`);
+  document.getElementById("scanInvPanel").style.display = "none";
+}
+
+async function scanDispatch(rowIdx, currentQty) {
+  const delta = parseInt(document.getElementById("scanQty").value)||1;
+  if (delta > currentQty) {
+    setCamStatus(`Not enough stock. Available: ${currentQty} units.`, "err"); return;
+  }
+  const newQty = currentQty - delta;
+  const today  = todayStr();
+  const notes  = document.getElementById("scanNotes").value.trim() || "Dispatched";
+  setCamStatus('<span class="spinner"></span>Dispatching from stock…', "loading");
+  const res = await sheetUpdate(rowIdx, newQty, today);
+  if (res.trim() !== "ok") { setCamStatus("Sheet error: " + res, "err"); return; }
+  await sheetAppendTx([today, currentScan.mfrPartNumber, currentScan.supplier, "Dispatch", delta, currentQty, newQty, notes]);
+  setCamStatus(`✓ Dispatched ${delta} units. Remaining: ${newQty}.`, "ok");
+  toast(`Dispatched ${currentScan.mfrPartNumber} × ${delta}`);
   document.getElementById("scanInvPanel").style.display = "none";
 }
 
@@ -869,7 +985,7 @@ async function manualUpdate() {
 
     if (!foundRow) { setStatus("manualStatus", `"${mfrPn}" not found in inventory.`, "err"); return; }
 
-    const oldQty = parseInt(foundRow[4]||"0");
+    const oldQty = parseInt(foundRow[5]||"0"); // col F = index 5
     let newQty = action === "Receive" ? oldQty + qty : oldQty - qty;
     if (newQty < 0) { setStatus("manualStatus", `Not enough stock. Current: ${oldQty} units.`, "err"); return; }
 
@@ -882,6 +998,7 @@ async function manualUpdate() {
     document.getElementById("manualMfrPn").value = "";
     document.getElementById("manualQty").value = "1";
     document.getElementById("manualNotes").value = "";
+    document.getElementById("manualLocation").value = "";
   } catch(e) { setStatus("manualStatus", "Error: " + e.message, "err"); }
 }
 
@@ -921,12 +1038,12 @@ async function processCSV() {
     const supplier= (row.Supplier||"").trim() || "Unknown";
     const desc    = (row.Description||"").trim();
     const suppPn  = (row.SupplierPN||"").trim();
+    const location= (row.Location||"").trim();
 
     if (!mfrPn) { results.push({ status:"skip", msg:"Skipped: blank MfrPN" }); continue; }
     if (qty <= 0) { results.push({ status:"skip", msg:`Skipped ${mfrPn}: invalid quantity` }); continue; }
-    if (!["Receive","Use"].includes(action)) { results.push({ status:"err", msg:`${mfrPn}: invalid action "${action}"` }); continue; }
+    if (!["Receive","Use","Dispatch"].includes(action)) { results.push({ status:"err", msg:`${mfrPn}: invalid action "${action}"` }); continue; }
 
-    // Find in sheet
     let foundRow = null, foundIdx = -1;
     for (let i = 1; i < sheetRows.length; i++) {
       if ((sheetRows[i][2]||"").trim().toUpperCase() === mfrPn.toUpperCase()) {
@@ -936,12 +1053,12 @@ async function processCSV() {
 
     if (!foundRow) {
       if (action === "Receive") {
-        const newRow = [suppPn, supplier, mfrPn, desc, qty, today];
+        // Row: SupplierPN | Supplier | MfrPN | Description | Location | Quantity | LastUpdated
+        const newRow = [suppPn, supplier, mfrPn, desc, location, qty, today];
         try {
           await sheetAppend(newRow);
           await sheetAppendTx([today, mfrPn, supplier, "Receive", qty, 0, qty, "BOM Upload"]);
           results.push({ status:"ok", msg:`${mfrPn}: added × ${qty}` });
-          // add to local cache
           sheetRows.push(newRow);
           processed++;
         } catch(e) { results.push({ status:"err", msg:`${mfrPn}: write failed` }); }
@@ -949,13 +1066,13 @@ async function processCSV() {
         results.push({ status:"warn", msg:`${mfrPn}: not found in inventory` });
       }
     } else {
-      const oldQty = parseInt(foundRow[4]||"0");
-      let newQty = action === "Receive" ? oldQty + qty : oldQty - qty;
+      const oldQty = parseInt(foundRow[5]||"0"); // col F = index 5
+      let newQty = (action === "Receive") ? oldQty + qty : oldQty - qty;
       if (newQty < 0) { results.push({ status:"err", msg:`${mfrPn}: insufficient stock (have ${oldQty})` }); continue; }
       try {
         await sheetUpdate(foundIdx, newQty, today);
         await sheetAppendTx([today, mfrPn, foundRow[1]||supplier, action, qty, oldQty, newQty, "BOM Upload"]);
-        foundRow[4] = newQty; // update local cache
+        foundRow[5] = newQty;
         results.push({ status:"ok", msg:`${mfrPn}: ${oldQty} → ${newQty}` });
         processed++;
       } catch(e) { results.push({ status:"err", msg:`${mfrPn}: update failed` }); }
@@ -976,9 +1093,9 @@ async function processCSV() {
 
 function downloadSampleCSV() {
   const sample = [
-    { MfrPN:"SN74LVC1G08DCKR", Quantity:100, Action:"Receive", Supplier:"DigiKey", SupplierPN:"296-11602-1-ND", Description:"IC GATE AND 1CH SC70-5" },
-    { MfrPN:"CL10A105KA8N",    Quantity:200, Action:"Receive", Supplier:"DigiKey", SupplierPN:"",                Description:"CAP CER 1UF 10V X5R 0603" },
-    { MfrPN:"SN74LVC1G08DCKR", Quantity:5,   Action:"Use",     Supplier:"DigiKey", SupplierPN:"",                Description:"" }
+    { MfrPN:"SN74LVC1G08DCKR", Quantity:100, Action:"Receive", Supplier:"DigiKey", SupplierPN:"296-11602-1-ND", Description:"IC GATE AND 1CH SC70-5", Location:"Shelf A1" },
+    { MfrPN:"CL10A105KA8N",    Quantity:200, Action:"Receive", Supplier:"DigiKey", SupplierPN:"",                Description:"CAP CER 1UF 10V X5R 0603", Location:"Shelf B2" },
+    { MfrPN:"SN74LVC1G08DCKR", Quantity:5,   Action:"Dispatch",Supplier:"DigiKey", SupplierPN:"",                Description:"", Location:"" }
   ];
   exportCSV("sample_bom.csv", sample);
 }
@@ -991,7 +1108,7 @@ async function exportInventoryCSV() {
     const rows = await sheetRead();
     const data = rows.slice(1).map(r => ({
       MfrPN: r[2]||"", SupplierPN: r[0]||"", Supplier: r[1]||"",
-      Description: r[3]||"", Quantity: r[4]||"", LastUpdated: r[5]||""
+      Description: r[3]||"", Location: r[4]||"", Quantity: r[5]||"", LastUpdated: r[6]||""
     }));
     exportCSV("inventory_export.csv", data);
   } catch(e) { toast("Export failed: " + e.message); }
