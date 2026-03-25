@@ -385,26 +385,12 @@
   <!-- ══ BOM UPLOAD ══ -->
   <div id="page-bom" class="page">
     <div class="card">
-      <div class="card-title">Customer Order — BOM Check</div>
+      <div class="card-title">Order Check — Stock Availability</div>
       <div class="config-note">
-        Upload a customer BOM to check stock availability. The app auto-detects columns —
-        no need to rename anything. Only <b>Part Number</b> and <b>Quantity</b> are required.
+        Upload a customer order BOM to check if parts are in stock. The app auto-detects columns — no need to rename anything. Only <b>Part Number</b> and <b>Quantity</b> are required.
       </div>
-
-      <!-- Customer Details -->
-      <div class="form-grid" style="margin-bottom:14px">
-        <div class="field">
-          <label>Customer Name</label>
-          <input type="text" id="customerName" placeholder="e.g. ABC Electronics" />
-        </div>
-        <div class="field">
-          <label>Order Reference (optional)</label>
-          <input type="text" id="orderRef" placeholder="e.g. PO-2026-001" />
-        </div>
-      </div>
-
       <div class="field" style="max-width:400px;margin-bottom:14px">
-        <label>Upload BOM CSV</label>
+        <label>Upload Order BOM CSV</label>
         <input type="file" id="csvFile" accept=".csv" style="padding:6px" />
       </div>
       <div class="btn-row">
@@ -414,12 +400,10 @@
       <div id="bomStatus" class="status-bar" style="margin-top:14px">Upload a BOM to check stock availability.</div>
     </div>
 
-    <!-- Availability Report — shown after check -->
     <div id="bomResults"></div>
 
-    <!-- Confirmation Panel — shown after report -->
     <div id="bomConfirmPanel" style="display:none" class="card">
-      <div class="card-title">Confirm Order Dispatch</div>
+      <div class="card-title">Confirm Stock Deduction</div>
       <div id="bomConfirmSummary" style="margin-bottom:16px;font-size:13px;line-height:1.8"></div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="confirmOrderDispatch()">✅ Confirm & Deduct Stock</button>
@@ -1092,9 +1076,6 @@ async function processCSV() {
   const file = document.getElementById("csvFile").files[0];
   if (!file) { setStatus("bomStatus", "No file selected.", "err"); return; }
 
-  const customerName = document.getElementById("customerName").value.trim();
-  if (!customerName) { setStatus("bomStatus", "⚠ Please enter a customer name first.", "err"); return; }
-
   setStatus("bomStatus", '<span class="spinner"></span>Reading and analysing BOM…', "loading");
   document.getElementById("bomResults").innerHTML = "";
   document.getElementById("bomConfirmPanel").style.display = "none";
@@ -1185,7 +1166,7 @@ async function processCSV() {
     </div>
 
     <div class="card">
-      <div class="card-title">Availability Report — ${customerName} ${document.getElementById("orderRef").value ? "· " + document.getElementById("orderRef").value : ""}</div>
+      <div class="card-title">Availability Report</div>
 
       <!-- Summary bar -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
@@ -1249,9 +1230,8 @@ async function processCSV() {
     const totalParts = pendingOrderItems.length;
     const totalUnits = pendingOrderItems.reduce((s,r) => s + Math.min(r.needed, r.have), 0);
     document.getElementById("bomConfirmSummary").innerHTML = `
-      <b>${customerName}</b> ${document.getElementById("orderRef").value ? "· " + document.getElementById("orderRef").value : ""}<br>
-      Ready to dispatch: <b style="color:var(--success)">${totalParts} part types · ${totalUnits} total units</b><br>
-      ${partial.length ? `<span style="color:var(--warn)">⚠ ${partial.length} parts will be partially fulfilled (dispatching available qty)</span><br>` : ""}
+      Ready to deduct: <b style="color:var(--success)">${totalParts} part types · ${totalUnits} total units</b><br>
+      ${partial.length ? `<span style="color:var(--warn)">⚠ ${partial.length} parts will be partially fulfilled</span><br>` : ""}
       ${outOfStock.length ? `<span style="color:var(--error)">❌ ${outOfStock.length} parts cannot be fulfilled</span>` : ""}`;
     document.getElementById("bomConfirmPanel").style.display = "block";
   }
@@ -1260,14 +1240,12 @@ async function processCSV() {
 async function confirmOrderDispatch() {
   if (!pendingOrderItems.length) return;
 
-  const customerName = document.getElementById("customerName").value.trim();
-  const orderRef     = document.getElementById("orderRef").value.trim();
-  const today        = todayStr();
-  const notes        = `Order: ${customerName}${orderRef ? " · " + orderRef : ""}`;
+  const today = todayStr();
+  const notes = "Order Dispatch";
 
   const statusEl = document.getElementById("bomConfirmStatus");
   statusEl.style.display = "block";
-  statusEl.innerHTML = '<span class="spinner"></span>Dispatching stock…';
+  statusEl.innerHTML = '<span class="spinner"></span>Deducting stock…';
   statusEl.className = "status-bar loading";
 
   let done = 0;
@@ -1278,30 +1256,23 @@ async function confirmOrderDispatch() {
       await sheetUpdate(item.rowIdx, newQty, today);
       await sheetAppendTx([today, item.mfrPn, item.supplier, "Dispatch", dispatchQty, item.have, newQty, notes]);
       done++;
-    } catch(e) {
-      console.error("Failed to dispatch", item.mfrPn, e);
-    }
+    } catch(e) { console.error("Failed to dispatch", item.mfrPn, e); }
   }
 
-  statusEl.innerHTML = `✅ Done! Dispatched ${done} part types for ${customerName}.`;
+  statusEl.innerHTML = `✅ Done! Stock deducted for ${done} part types.`;
   statusEl.className = "status-bar ok";
-  toast(`Order dispatched: ${done} parts for ${customerName}`);
+  toast(`Order fulfilled: ${done} parts deducted`);
 
-  // Reset
   pendingOrderItems = [];
-  document.getElementById("customerName").value = "";
-  document.getElementById("orderRef").value = "";
   document.getElementById("csvFile").value = "";
-
-  // Hide confirm buttons
   document.querySelector("#bomConfirmPanel .btn-row").style.display = "none";
 }
 
 function cancelOrderDispatch() {
   pendingOrderItems = [];
   document.getElementById("bomConfirmPanel").style.display = "none";
-  setStatus("bomStatus", "Order cancelled. No changes were made.", "warn");
-  toast("Order cancelled.");
+  setStatus("bomStatus", "Cancelled. No stock was deducted.", "warn");
+  toast("Cancelled.");
 }
 
 // Keyword maps for fuzzy matching — ORDER MATTERS (most specific first)
