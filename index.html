@@ -205,6 +205,20 @@
     .qty-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
     .qty-row input { width: 80px; padding: 8px 10px; border: 1px solid var(--border2); border-radius: 8px; font-size: 13px; font-family: var(--mono); }
 
+    /* ── SCAN HISTORY ── */
+    .scan-hist-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .scan-hist-img { width: 100%; height: 140px; object-fit: cover; background: #111; display: block; border-bottom: 1px solid var(--border); }
+    .scan-hist-body { padding: 12px 14px; }
+    .scan-hist-pn { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); word-break: break-all; margin-bottom: 4px; }
+    .scan-hist-desc { font-size: 12px; color: var(--muted); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .scan-hist-meta { display: flex; justify-content: space-between; align-items: center; }
+    .scan-hist-date { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+    .scan-hist-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .scan-hist-status.found    { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+    .scan-hist-status.notfound { background: var(--accent-light); color: var(--accent); border: 1px solid #c3d9ff; }
+    .scan-hist-delete { font-size: 11px; color: var(--error); cursor: pointer; margin-top: 8px; text-align: right; }
+    .scan-hist-delete:hover { text-decoration: underline; }
+
     /* ── STATUS BAR ── */
     .status-bar { padding: 10px 14px; border-radius: 8px; font-size: 12px; font-family: var(--mono); margin-top: 12px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); min-height: 40px; }
     .status-bar.ok      { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
@@ -242,6 +256,7 @@
   <button class="nav-btn" onclick="showPage('bom')">Order Check</button>
   <button class="nav-btn" onclick="showPage('inventory')">Inventory</button>
   <button class="nav-btn" onclick="showPage('transactions')">Transactions</button>
+  <button class="nav-btn" onclick="showPage('scanhistory')">Scan History</button>
 
 </div>
 
@@ -450,6 +465,21 @@
   </div>
 
 
+  <!-- ══ SCAN HISTORY ══ -->
+  <div id="page-scanhistory" class="page">
+    <div class="card">
+      <div class="card-title">Scan History</div>
+      <div class="search-bar">
+        <input type="text" id="scanHistorySearch" placeholder="Search by part number…" oninput="renderScanHistory()" />
+        <button class="btn btn-danger" onclick="clearScanHistory()">Clear All</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Images are saved permanently in this browser.</div>
+    </div>
+    <div id="scanHistoryGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;"></div>
+    <div id="scanHistoryEmpty" class="card" style="display:none">
+      <div class="empty-state">No scans saved yet. Start scanning labels to build your history.</div>
+    </div>
+  </div>
 
 </div><!-- /page-wrap -->
 
@@ -577,6 +607,7 @@ function showPage(name) {
   if (name === "inventory")    renderInventory();
   if (name === "transactions") renderTransactions();
   if (name === "dashboard")    loadDashboard();
+  if (name === "scanhistory")  renderScanHistory();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -881,6 +912,17 @@ Set mfrPartNumber to NOT_FOUND if not visible.`;
     document.getElementById("scanDesc").value = parsed.description || "";
     showSupplierBadge("scanSupplierBadge", parsed.supplier);
     setCamStatus("✓ Label read. Check the part number above — edit if needed, then check inventory.", "ok");
+
+    // Save to scan history
+    saveScanToHistory({
+      mfrPn: parsed.mfrPartNumber,
+      supplierPn: parsed.supplierPartNumber || "",
+      supplier: parsed.supplier || "Unknown",
+      desc: parsed.description || "",
+      date: today,
+      image: dataUrl
+    });
+
     await lookupForScan(parsed.mfrPartNumber);
   } catch(err) { setCamStatus("Network error: " + err.message, "err"); }
 }
@@ -1492,6 +1534,83 @@ function doPrint() {
   win.document.close();
   document.getElementById("printModal").style.display = "none";
   toast("Label sent to printer!");
+}
+
+// ════════════════════════════════════════════════════════════
+// SCAN HISTORY — saved permanently in localStorage
+// ════════════════════════════════════════════════════════════
+function saveScanToHistory(scan) {
+  try {
+    const history = getScanHistory();
+    // Add new scan at the beginning with a unique ID
+    history.unshift({
+      id: Date.now(),
+      mfrPn: scan.mfrPn,
+      supplierPn: scan.supplierPn,
+      supplier: scan.supplier,
+      desc: scan.desc,
+      date: scan.date,
+      image: scan.image // base64 cropped image
+    });
+    // Keep only last 100 scans to avoid storage limits
+    const trimmed = history.slice(0, 100);
+    localStorage.setItem("nexwah_scan_history", JSON.stringify(trimmed));
+  } catch(e) {
+    console.warn("Could not save scan history:", e);
+  }
+}
+
+function getScanHistory() {
+  try {
+    return JSON.parse(localStorage.getItem("nexwah_scan_history") || "[]");
+  } catch { return []; }
+}
+
+function deleteScanFromHistory(id) {
+  const history = getScanHistory().filter(s => s.id !== id);
+  localStorage.setItem("nexwah_scan_history", JSON.stringify(history));
+  renderScanHistory();
+  toast("Scan deleted.");
+}
+
+function clearScanHistory() {
+  if (!confirm("Clear all scan history? This cannot be undone.")) return;
+  localStorage.removeItem("nexwah_scan_history");
+  renderScanHistory();
+  toast("Scan history cleared.");
+}
+
+function renderScanHistory() {
+  const search = (document.getElementById("scanHistorySearch").value || "").trim().toUpperCase();
+  let history = getScanHistory();
+  if (search) history = history.filter(s =>
+    (s.mfrPn||"").toUpperCase().includes(search) ||
+    (s.desc||"").toUpperCase().includes(search)
+  );
+
+  const grid  = document.getElementById("scanHistoryGrid");
+  const empty = document.getElementById("scanHistoryEmpty");
+
+  if (!history.length) {
+    grid.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+  grid.innerHTML = history.map(s => `
+    <div class="scan-hist-card">
+      <img class="scan-hist-img" src="${s.image}" alt="Scan image" />
+      <div class="scan-hist-body">
+        <div class="scan-hist-pn">${s.mfrPn || "—"}</div>
+        <div class="scan-hist-desc">${s.desc || s.supplierPn || "—"}</div>
+        <div class="scan-hist-meta">
+          <span class="scan-hist-date">${s.date || "—"}</span>
+          <span class="supplier-badge badge-${(s.supplier||"unknown").toLowerCase().replace(/[^a-z]/g,"")}">${s.supplier||"Unknown"}</span>
+        </div>
+        <div class="scan-hist-delete" onclick="deleteScanFromHistory(${s.id})">🗑 Delete</div>
+      </div>
+    </div>
+  `).join("");
 }
 
 // ════════════════════════════════════════════════════════════
