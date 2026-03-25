@@ -308,21 +308,6 @@
 
       <div class="scanner-layout">
         <div>
-          <!-- Scan Method Toggle -->
-          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-            <button id="methodBarcode" onclick="setScanMethod('barcode')"
-              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--accent);border-radius:8px;cursor:pointer;background:var(--accent);color:#fff">
-              📊 Barcode (Free)
-            </button>
-            <button id="methodOCR" onclick="setScanMethod('ocr')"
-              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--surface2);color:var(--muted)">
-              🤖 AI Vision
-            </button>
-          </div>
-          <div id="scanMethodLabel" style="font-size:11px;color:var(--muted);margin-bottom:10px">
-            📊 <b>Barcode mode</b> — free, instant, 100% accurate
-          </div>
-
           <div class="video-wrap">
             <video id="video" autoplay playsinline muted></video>
             <div class="scan-box-border"></div>
@@ -499,7 +484,7 @@
 </div><!-- /page-wrap -->
 
 <!-- ── API KEY MODAL ── -->
-<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center">
+<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
     <div style="font-family:var(--mono);font-size:18px;font-weight:500;color:var(--accent);margin-bottom:8px">NEXWAH / Inventory</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">
@@ -514,9 +499,6 @@
     </div>
     <button onclick="saveModalKey()" style="width:100%;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)">
       Save &amp; Continue
-    </button>
-    <button onclick="skipApiKey()" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border2);padding:10px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);margin-top:8px">
-      Skip — Use Free OCR (Tesseract)
     </button>
     <div id="modalError" style="color:var(--error);font-size:12px;margin-top:10px;display:none">
       Key should start with sk-ant- — please check and try again.
@@ -588,18 +570,14 @@ const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
 // INIT
 // ════════════════════════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", () => {
-  const savedKey  = localStorage.getItem("nexwah_anthropic_key");
-  cfg.anthropicKey = savedKey || "";
-  loadDashboard();
+  const savedKey = localStorage.getItem("nexwah_anthropic_key");
+  if (savedKey) {
+    cfg.anthropicKey = savedKey;
+    loadDashboard();
+  } else {
+    showKeyModal();
+  }
 });
-
-function skipApiKey() {
-  cfg.anthropicKey = "";
-  localStorage.setItem("nexwah_skip_api", "true");
-  document.getElementById("keyModal").style.display = "none";
-  loadDashboard();
-  toast("Using free Tesseract OCR for scanning.");
-}
 
 function showKeyModal() {
   document.getElementById("keyModal").style.display = "flex";
@@ -665,10 +643,6 @@ async function sheetAppendTx(row) {
 // ════════════════════════════════════════════════════════════
 async function loadDashboard() {
   document.getElementById("topbarStatus").textContent = "Loading…";
-  document.getElementById("stat-parts").textContent = "—";
-  document.getElementById("stat-qty").textContent = "—";
-  document.getElementById("stat-low").textContent = "—";
-  document.getElementById("stat-tx").textContent = "—";
   try {
     const rows = await sheetRead();
     const data = rows.slice(1);
@@ -719,16 +693,8 @@ async function loadDashboard() {
 
     document.getElementById("topbarStatus").textContent = `${totalParts} parts · ${totalQty} units`;
   } catch(e) {
-    document.getElementById("topbarStatus").textContent = "⚠ Sheet unavailable";
-    document.getElementById("stat-parts").textContent = "—";
-    document.getElementById("stat-qty").textContent = "—";
-    document.getElementById("stat-low").textContent = "—";
-    document.getElementById("lowStockList").innerHTML = `
-      <div class="alert alert-warn">
-        Could not connect to Google Sheets. Check your internet connection or try refreshing.<br>
-        <small style="color:var(--muted)">${e.message||""}</small>
-      </div>`;
-    document.getElementById("recentTxBody").innerHTML = `<tr><td colspan="5" class="empty-state">Could not load.</td></tr>`;
+    document.getElementById("topbarStatus").textContent = "Sheet error";
+    document.getElementById("lowStockList").innerHTML = `<div class="alert alert-warn">Could not load sheet. Check config.</div>`;
   }
 }
 
@@ -812,22 +778,7 @@ async function renderTransactions() {
 // ════════════════════════════════════════════════════════════
 // SCAN MODE TOGGLE
 // ════════════════════════════════════════════════════════════
-let scanMode   = "receive";
-let scanMethod = "barcode"; // "barcode" or "ocr"
-
-function setScanMethod(method) {
-  scanMethod = method;
-  const isBarcode = method === "barcode";
-  document.getElementById("methodBarcode").style.background   = isBarcode ? "var(--accent)" : "var(--surface2)";
-  document.getElementById("methodBarcode").style.color        = isBarcode ? "#fff" : "var(--muted)";
-  document.getElementById("methodBarcode").style.borderColor  = isBarcode ? "var(--accent)" : "var(--border2)";
-  document.getElementById("methodOCR").style.background       = !isBarcode ? "var(--accent)" : "var(--surface2)";
-  document.getElementById("methodOCR").style.color            = !isBarcode ? "#fff" : "var(--muted)";
-  document.getElementById("methodOCR").style.borderColor      = !isBarcode ? "var(--accent)" : "var(--border2)";
-  document.getElementById("scanMethodLabel").innerHTML = isBarcode
-    ? "📊 <b>Barcode mode</b> — free, instant, 100% accurate"
-    : "🤖 <b>AI Vision mode</b> — reads full label text, needs API key";
-}
+let scanMode = "receive";
 
 function setScanMode(mode) {
   scanMode = mode;
@@ -873,6 +824,7 @@ function stopCamera() {
 }
 
 async function captureAndExtract() {
+  if (!cfg.anthropicKey) { setCamStatus("⚠ Set your Anthropic API key in Config first.", "err"); return; }
   const video = document.getElementById("video");
   if (!video.srcObject) { setCamStatus("Start the camera first.", "err"); return; }
   const W = video.videoWidth, H = video.videoHeight;
@@ -896,10 +848,10 @@ async function captureAndExtract() {
     const g = Math.max(0, Math.min(255, (0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]-128)*1.4+128));
     d[i] = d[i+1] = d[i+2] = g;
   }
-  const cropUrl = crop.toDataURL("image/jpeg", 0.95);
-  document.getElementById("cropPreview").src = cropUrl;
+  cctx.putImageData(imgData, 0, 0);
+  document.getElementById("cropPreview").src = crop.toDataURL("image/jpeg", 0.95);
 
-  // Reset UI
+  // Reset
   document.getElementById("scanMfrPn").value = "";
   document.getElementById("scanMfrPn").style.borderColor = "var(--border2)";
   document.getElementById("scanSupplierBadge").innerHTML = "";
@@ -907,145 +859,11 @@ async function captureAndExtract() {
   document.getElementById("scanDesc").value = "";
   document.getElementById("scanInvPanel").style.display = "none";
 
-  if (scanMethod === "barcode") {
-    await extractBarcode(cropUrl);
-  } else {
-    await extractWithClaude(cropUrl);
-  }
+  await extractWithClaude(crop.toDataURL("image/jpeg", 0.95));
 }
 
-// ════════════════════════════════════════════════════════════
-// BARCODE SCANNING — ZXing (free, no API needed)
-// ════════════════════════════════════════════════════════════
-async function extractBarcode(dataUrl) {
-  setCamStatus('<span class="spinner"></span>Scanning barcode…', "loading");
-
-  // Load ZXing library if not already loaded
-  if (!window.ZXing) {
-    await new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js";
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-
-  try {
-    const img = new Image();
-    img.src = dataUrl;
-    await new Promise(r => img.onload = r);
-
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    canvas.getContext("2d").drawImage(img, 0, 0);
-
-    const hints = new Map();
-    const formats = [
-      ZXing.BarcodeFormat.DATA_MATRIX,
-      ZXing.BarcodeFormat.QR_CODE,
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.EAN_13,
-    ];
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-    const reader = new ZXing.MultiFormatReader();
-    reader.setHints(hints);
-
-    const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-    const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
-    const result = reader.decode(binaryBitmap);
-    const text = result.getText();
-
-    // Parse the barcode text — DigiKey 2D codes contain structured data
-    const parsed = parseBarcodeText(text);
-
-    if (parsed.mfrPartNumber || parsed.supplierPartNumber) {
-      setCamStatus(`✓ Barcode scanned! (${result.getBarcodeFormat()})`, "ok");
-      await handleScanResult({
-        mfrPartNumber: parsed.mfrPartNumber || parsed.supplierPartNumber,
-        supplierPartNumber: parsed.supplierPartNumber || "",
-        supplier: parsed.supplier || "Unknown",
-        description: parsed.description || ""
-      }, dataUrl, "Barcode Scanner (Free)");
-    } else {
-      setCamStatus("Barcode found but could not extract part number. Try AI Vision mode.", "warn");
-      document.getElementById("scanMfrPn").value = text.substring(0, 50);
-    }
-
-  } catch(e) {
-    // No barcode found — suggest switching to AI
-    setCamStatus("⚠ No barcode detected. Try AI Vision mode or reposition the label.", "warn");
-    toast("No barcode found — switch to AI Vision mode");
-  }
-}
-
-function parseBarcodeText(text) {
-  const result = { mfrPartNumber: "", supplierPartNumber: "", supplier: "", description: "" };
-
-  // DigiKey 2D DataMatrix format: [)>\u001e06\u001dPN...\u001dMFR...
-  // Fields separated by GS (ASCII 29) character
-  if (text.includes("\u001d") || text.includes("\u001e")) {
-    const fields = text.split(/[\u001d\u001e\r\n]+/).map(f => f.trim()).filter(f => f);
-    for (const field of fields) {
-      if (field.startsWith("P") && field.length > 3) result.supplierPartNumber = field.slice(1);
-      else if (field.startsWith("1P")) result.mfrPartNumber = field.slice(2);
-      else if (field.startsWith("Q")) result.quantity = parseInt(field.slice(1));
-      else if (field.startsWith("K")) result.poNumber = field.slice(1);
-    }
-    result.supplier = "DigiKey";
-    return result;
-  }
-
-  // Mouser format check
-  if (text.includes("[)>")) {
-    result.supplier = "Mouser";
-  }
-
-  // Plain text — might just be the PN directly
-  const cleaned = text.toUpperCase().trim().replace(/\s+/g, "");
-  if (cleaned.endsWith("-ND")) {
-    result.supplierPartNumber = cleaned;
-    result.supplier = "DigiKey";
-  } else if (/^[A-Z0-9\-]{6,}$/.test(cleaned)) {
-    result.mfrPartNumber = cleaned;
-  }
-
-  return result;
-}
-
-// ════════════════════════════════════════════════════════════
-// TESSERACT PRIMARY + CLAUDE ENHANCEMENT (optional)
-// ════════════════════════════════════════════════════════════
 async function extractWithClaude(dataUrl) {
-
-  // If API key available — use Claude (most accurate)
-  if (cfg.anthropicKey) {
-    setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…', "loading");
-    try {
-      const result = await tryClaudeVision(dataUrl);
-      if (result) { await handleScanResult(result, dataUrl, "Claude Vision"); return; }
-    } catch(err) {
-      setCamStatus('<span class="spinner"></span>Claude unavailable — switching to Tesseract…', "warn");
-      await new Promise(r => setTimeout(r, 600));
-    }
-  }
-
-  // No API key OR Claude failed — use Tesseract
-  setCamStatus('<span class="spinner"></span>Running Tesseract OCR… (free, no API needed)', "loading");
-  try {
-    const result = await tryTesseract(dataUrl);
-    if (result) { await handleScanResult(result, dataUrl, "Tesseract OCR (Free)"); return; }
-    setCamStatus("⚠ Could not read label. Try better lighting, hold steady, or get closer.", "err");
-  } catch(err) {
-    setCamStatus("OCR failed: " + err.message, "err");
-  }
-}
-
-async function tryClaudeVision(dataUrl) {
+  setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…', "loading");
   const base64 = dataUrl.split(",")[1];
   const prompt = `You are an electronics label reader. Return ONLY a raw JSON object, no markdown:
 {
@@ -1056,147 +874,57 @@ async function tryClaudeVision(dataUrl) {
 }
 Set mfrPartNumber to NOT_FOUND if not visible.`;
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": cfg.anthropicKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514", max_tokens: 250,
-      messages: [{ role: "user", content: [
-        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
-        { type: "text", text: prompt }
-      ]}]
-    })
-  });
-
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data?.error?.message || "Claude API error");
-
-  const raw = (data.content||[]).map(b=>b.text||"").join("").trim();
-  const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
-  if (!parsed.mfrPartNumber || parsed.mfrPartNumber === "NOT_FOUND") return null;
-  return parsed;
-}
-
-async function tryTesseract(dataUrl) {
-  // Dynamically load Tesseract if not already loaded
-  if (!window.Tesseract) {
-    await new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": cfg.anthropicKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514", max_tokens: 250,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+          { type: "text", text: prompt }
+        ]}]
+      })
     });
-  }
+    const data = await resp.json();
+    if (!resp.ok) { setCamStatus("API error: " + (data?.error?.message || "Unknown"), "err"); return; }
 
-  setCamStatus('<span class="spinner"></span>Tesseract OCR running…', "loading");
+    let parsed;
+    const raw = (data.content||[]).map(b=>b.text||"").join("").trim();
+    try { parsed = JSON.parse(raw.replace(/```json|```/g,"").trim()); }
+    catch { setCamStatus("Could not parse response. Try scanning again.", "err"); return; }
 
-  // Preprocess image for better OCR accuracy
-  const processedUrl = await preprocessImageForOCR(dataUrl);
+    if (!parsed.mfrPartNumber || parsed.mfrPartNumber === "NOT_FOUND") {
+      setCamStatus("No part number found. Reposition and try again.", "err");
+      document.getElementById("scanMfrPn").value = ""; return;
+    }
 
-  const worker = await Tesseract.createWorker("eng");
-  await worker.setParameters({
-    tessedit_pageseg_mode: "6",
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/"
-  });
+    const today = todayStr();
+    currentScan = { ...parsed, date: today };
+    document.getElementById("scanMfrPn").value = parsed.mfrPartNumber;
+    document.getElementById("scanMfrPn").style.borderColor = "var(--accent)";
+    document.getElementById("scanSupplierPn").value = parsed.supplierPartNumber || "";
+    document.getElementById("scanDesc").value = parsed.description || "";
+    showSupplierBadge("scanSupplierBadge", parsed.supplier);
+    setCamStatus("✓ Label read. Check the part number above — edit if needed, then check inventory.", "ok");
 
-  const { data: { text } } = await worker.recognize(processedUrl);
-  await worker.terminate();
+    // Save to scan history
+    saveScanToHistory({
+      mfrPn: parsed.mfrPartNumber,
+      supplierPn: parsed.supplierPartNumber || "",
+      supplier: parsed.supplier || "Unknown",
+      desc: parsed.description || "",
+      date: today,
+      image: dataUrl
+    });
 
-  const lines = text.toUpperCase().split("\n").map(l => l.trim()).filter(l => l.length > 3);
-  const fullText = lines.join(" ");
-
-  // Try multiple patterns to find part numbers
-  const patterns = [
-    // DigiKey style: 296-11602-1-ND
-    /\b(\d{3}-\d{4,6}-\d-[A-Z]{2})\b/,
-    // Mouser style: 595-SN74LVC1G08DCKR
-    /\b(\d{3}-[A-Z0-9]{6,})\b/,
-    // General alphanumeric PN: SN74LVC1G08DCKR, CL10A105KA8N
-    /\b([A-Z]{2,4}\d{2,}[A-Z0-9]{4,})\b/,
-    // Dashed PN: MB10S-13, HDS10M-13
-    /\b([A-Z]{2,}[0-9]{2,}[A-Z0-9]*[-][A-Z0-9]+)\b/,
-    // Any long alphanumeric 6+ chars
-    /\b([A-Z0-9]{6,})\b/
-  ];
-
-  let bestMatch = null;
-  for (const pattern of patterns) {
-    const matches = fullText.match(pattern);
-    if (matches) { bestMatch = matches[1]; break; }
-  }
-
-  if (!bestMatch) return null;
-
-  // Try to detect supplier from text
-  let supplier = "Unknown";
-  if (fullText.includes("DIGIKEY") || fullText.includes("DIGI-KEY")) supplier = "DigiKey";
-  else if (fullText.includes("MOUSER")) supplier = "Mouser";
-
-  return {
-    mfrPartNumber: bestMatch,
-    supplierPartNumber: "",
-    supplier,
-    description: ""
-  };
-}
-
-async function preprocessImageForOCR(dataUrl) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      // Scale up 2x for better OCR
-      canvas.width  = img.width * 2;
-      canvas.height = img.height * 2;
-      const ctx = canvas.getContext("2d");
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      // Convert to grayscale + increase contrast
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        let gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
-        // High contrast threshold
-        gray = gray > 128 ? 255 : 0;
-        d[i] = d[i+1] = d[i+2] = gray;
-      }
-      ctx.putImageData(imageData, 0, 0);
-      resolve(canvas.toDataURL("image/png"));
-    };
-    img.src = dataUrl;
-  });
-}
-
-async function handleScanResult(parsed, dataUrl, method) {
-  const today = todayStr();
-  currentScan = { ...parsed, date: today };
-
-  document.getElementById("scanMfrPn").value = parsed.mfrPartNumber;
-  document.getElementById("scanMfrPn").style.borderColor = "var(--accent)";
-  document.getElementById("scanSupplierPn").value = parsed.supplierPartNumber || "";
-  document.getElementById("scanDesc").value = parsed.description || "";
-  showSupplierBadge("scanSupplierBadge", parsed.supplier);
-  setCamStatus(`✓ Label read via <b>${method}</b>. Edit if needed, then check inventory.`, "ok");
-
-  // Save to scan history
-  saveScanToHistory({
-    mfrPn: parsed.mfrPartNumber,
-    supplierPn: parsed.supplierPartNumber || "",
-    supplier: parsed.supplier || "Unknown",
-    desc: parsed.description || "",
-    date: today,
-    image: dataUrl
-  });
-
-  await lookupForScan(parsed.mfrPartNumber);
+    await lookupForScan(parsed.mfrPartNumber);
+  } catch(err) { setCamStatus("Network error: " + err.message, "err"); }
 }
 
 function showSupplierBadge(elId, supplier) {
