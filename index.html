@@ -1278,10 +1278,10 @@ function cancelOrderDispatch() {
 // Keyword maps for fuzzy matching — ORDER MATTERS (most specific first)
 const COLUMN_KEYWORDS = {
   MfrPN:       ["manufacturer part number","manufacturer part no","manufacturer part","mfr part number","mfr part no","mfr part","mfr pn","mfr#","manufacturer pn","mpn","part number","part no","partno","part#","pn","component pn","item number","item no"],
-  Quantity:    ["quantity","qty","count","amount","units","unit","num","pieces","pcs","how many","number of"],
+  Quantity:    ["quantity","qty","count","amount","units","unit","num","pieces","pcs","how many","number of","order qty","order quantity","order amount","order"],
   Action:      ["action","operation","transaction","type","direction","in/out","receive","dispatch","use"],
   Supplier:    ["supplier name","supplier","vendor name","vendor","distributor","seller","source","from","company"],
-  Description: ["part description","component description","description","desc","component name","part name","details","specification","spec","info"],
+  Description: ["part description","component description","description","discription","desc","component name","part name","details","specification","spec","info"],
   SupplierPN:  ["supplier part number","supplier part no","supplier pn","order part number","order pn","order number","order no","digikey part","mouser part","catalog number","sku","nexwah pn"],
   Location:    ["storage location","bin location","shelf location","location","bin","shelf","storage","place","position","where","drawer","box","slot"]
 };
