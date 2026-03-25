@@ -1061,55 +1061,65 @@ async function manualUpdate() {
 // BOM CSV UPLOAD — SMART COLUMN DETECTION
 // ════════════════════════════════════════════════════════════
 
-// Keyword maps for fuzzy matching
+// Keyword maps for fuzzy matching — ORDER MATTERS (most specific first)
 const COLUMN_KEYWORDS = {
-  MfrPN:       ["mfrpn","mfr pn","mfr part","manufacturer part","manufacturer pn","part number","part no","partno","part#","pn","mpn","mfr#","component","item number","item no"],
-  Quantity:    ["qty","quantity","count","amount","units","unit","num","number of","how many","pieces","pcs"],
-  Action:      ["action","type","operation","transaction","receive","dispatch","use","in/out","direction"],
-  Supplier:    ["supplier","vendor","source","distributor","seller","from","company","manufacturer"],
-  Description: ["description","desc","name","component name","part name","details","info","notes","specification","spec"],
-  SupplierPN:  ["supplier pn","supplier part","order pn","order number","order no","digikey","mouser","octopart","catalog","sku"],
-  Location:    ["location","loc","bin","shelf","storage","place","position","where","drawer","box","slot"]
-};
-
-// Action value normalizer
-const ACTION_MAP = {
-  "receive":   "Receive", "in":       "Receive", "add":      "Receive",
-  "incoming":  "Receive", "stock in": "Receive", "purchase": "Receive",
-  "dispatch":  "Dispatch","out":      "Dispatch","remove":   "Dispatch",
-  "outgoing":  "Dispatch","use":      "Dispatch","consume":  "Dispatch",
-  "used":      "Dispatch","issue":    "Dispatch"
+  MfrPN:       ["manufacturer part number","manufacturer part no","manufacturer part","mfr part number","mfr part no","mfr part","mfr pn","mfr#","manufacturer pn","mpn","part number","part no","partno","part#","pn","component pn","item number","item no"],
+  Quantity:    ["quantity","qty","count","amount","units","unit","num","pieces","pcs","how many","number of"],
+  Action:      ["action","operation","transaction","type","direction","in/out","receive","dispatch","use"],
+  Supplier:    ["supplier name","supplier","vendor name","vendor","distributor","seller","source","from","company"],
+  Description: ["part description","component description","description","desc","component name","part name","details","specification","spec","info"],
+  SupplierPN:  ["supplier part number","supplier part no","supplier pn","order part number","order pn","order number","order no","digikey part","mouser part","catalog number","sku","nexwah pn"],
+  Location:    ["storage location","bin location","shelf location","location","bin","shelf","storage","place","position","where","drawer","box","slot"]
 };
 
 function detectColumns(headers) {
   const mapping = {};
   const usedHeaders = new Set();
-  const confidence = {};
 
   for (const [field, keywords] of Object.entries(COLUMN_KEYWORDS)) {
     let bestMatch = null, bestScore = 0;
+
     for (const header of headers) {
       if (usedHeaders.has(header)) continue;
-      const h = header.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "");
+      const h = header.toLowerCase().trim().replace(/[_\-\.]+/g, " ").replace(/[^a-z0-9\s]/g, "").trim();
+
       let score = 0;
-      for (const kw of keywords) {
-        if (h === kw) { score = 100; break; }
-        if (h.includes(kw) || kw.includes(h)) { score = Math.max(score, 80); }
-        // partial word match
-        const hWords = h.split(/\s+/);
-        const kWords = kw.split(/\s+/);
-        const matches = hWords.filter(w => kWords.some(k => w.includes(k) || k.includes(w)));
-        if (matches.length > 0) score = Math.max(score, 50);
+      for (let ki = 0; ki < keywords.length; ki++) {
+        const kw = keywords[ki];
+        // Priority bonus — earlier keywords are more specific
+        const priorityBonus = Math.max(0, 30 - ki * 2);
+
+        if (h === kw) {
+          score = Math.max(score, 100 + priorityBonus); break;
+        }
+        if (h.includes(kw)) {
+          score = Math.max(score, 85 + priorityBonus);
+        } else if (kw.includes(h) && h.length >= 3) {
+          // Avoid short matches like "part" matching "manufacturer part number" too greedily
+          const specificity = h.length / kw.length;
+          score = Math.max(score, Math.round(60 * specificity) + priorityBonus);
+        } else {
+          // Word-level partial match
+          const hWords = h.split(/\s+/);
+          const kWords = kw.split(/\s+/);
+          const matchedWords = hWords.filter(w => w.length >= 3 && kWords.some(k => k === w));
+          if (matchedWords.length > 0) {
+            const wordScore = Math.round((matchedWords.length / Math.max(hWords.length, kWords.length)) * 50);
+            score = Math.max(score, wordScore + priorityBonus);
+          }
+        }
       }
+
       if (score > bestScore) { bestScore = score; bestMatch = header; }
     }
-    if (bestMatch && bestScore >= 50) {
+
+    // Only accept if score is high enough
+    if (bestMatch && bestScore >= 45) {
       mapping[field] = bestMatch;
-      confidence[field] = bestScore;
       usedHeaders.add(bestMatch);
     }
   }
-  return { mapping, confidence };
+  return { mapping };
 }
 
 function normalizeAction(value) {
