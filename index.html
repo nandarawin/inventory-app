@@ -907,12 +907,6 @@ async function extractWithClaude(dataUrl) {
     setCamStatus("OCR failed: " + err.message, "err");
   }
 }
-    if (result) { await handleScanResult(result, dataUrl, "Tesseract OCR"); return; }
-    setCamStatus("⚠ Could not read label. Try better lighting or reposition.", "err");
-  } catch(err) {
-    setCamStatus("Both Claude and Tesseract failed: " + err.message, "err");
-  }
-}
 
 async function tryClaudeVision(dataUrl) {
   const base64 = dataUrl.split(",")[1];
