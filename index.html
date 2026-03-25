@@ -308,6 +308,21 @@
 
       <div class="scanner-layout">
         <div>
+          <!-- Scan Method Toggle -->
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <button id="methodBarcode" onclick="setScanMethod('barcode')"
+              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--accent);border-radius:8px;cursor:pointer;background:var(--accent);color:#fff">
+              📊 Barcode (Free)
+            </button>
+            <button id="methodOCR" onclick="setScanMethod('ocr')"
+              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--surface2);color:var(--muted)">
+              🤖 AI Vision
+            </button>
+          </div>
+          <div id="scanMethodLabel" style="font-size:11px;color:var(--muted);margin-bottom:10px">
+            📊 <b>Barcode mode</b> — free, instant, 100% accurate
+          </div>
+
           <div class="video-wrap">
             <video id="video" autoplay playsinline muted></video>
             <div class="scan-box-border"></div>
@@ -797,7 +812,22 @@ async function renderTransactions() {
 // ════════════════════════════════════════════════════════════
 // SCAN MODE TOGGLE
 // ════════════════════════════════════════════════════════════
-let scanMode = "receive";
+let scanMode   = "receive";
+let scanMethod = "barcode"; // "barcode" or "ocr"
+
+function setScanMethod(method) {
+  scanMethod = method;
+  const isBarcode = method === "barcode";
+  document.getElementById("methodBarcode").style.background   = isBarcode ? "var(--accent)" : "var(--surface2)";
+  document.getElementById("methodBarcode").style.color        = isBarcode ? "#fff" : "var(--muted)";
+  document.getElementById("methodBarcode").style.borderColor  = isBarcode ? "var(--accent)" : "var(--border2)";
+  document.getElementById("methodOCR").style.background       = !isBarcode ? "var(--accent)" : "var(--surface2)";
+  document.getElementById("methodOCR").style.color            = !isBarcode ? "#fff" : "var(--muted)";
+  document.getElementById("methodOCR").style.borderColor      = !isBarcode ? "var(--accent)" : "var(--border2)";
+  document.getElementById("scanMethodLabel").innerHTML = isBarcode
+    ? "📊 <b>Barcode mode</b> — free, instant, 100% accurate"
+    : "🤖 <b>AI Vision mode</b> — reads full label text, needs API key";
+}
 
 function setScanMode(mode) {
   scanMode = mode;
@@ -866,10 +896,10 @@ async function captureAndExtract() {
     const g = Math.max(0, Math.min(255, (0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]-128)*1.4+128));
     d[i] = d[i+1] = d[i+2] = g;
   }
-  cctx.putImageData(imgData, 0, 0);
-  document.getElementById("cropPreview").src = crop.toDataURL("image/jpeg", 0.95);
+  const cropUrl = crop.toDataURL("image/jpeg", 0.95);
+  document.getElementById("cropPreview").src = cropUrl;
 
-  // Reset
+  // Reset UI
   document.getElementById("scanMfrPn").value = "";
   document.getElementById("scanMfrPn").style.borderColor = "var(--border2)";
   document.getElementById("scanSupplierBadge").innerHTML = "";
@@ -877,7 +907,114 @@ async function captureAndExtract() {
   document.getElementById("scanDesc").value = "";
   document.getElementById("scanInvPanel").style.display = "none";
 
-  await extractWithClaude(crop.toDataURL("image/jpeg", 0.95));
+  if (scanMethod === "barcode") {
+    await extractBarcode(cropUrl);
+  } else {
+    await extractWithClaude(cropUrl);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// BARCODE SCANNING — ZXing (free, no API needed)
+// ════════════════════════════════════════════════════════════
+async function extractBarcode(dataUrl) {
+  setCamStatus('<span class="spinner"></span>Scanning barcode…', "loading");
+
+  // Load ZXing library if not already loaded
+  if (!window.ZXing) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  try {
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise(r => img.onload = r);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext("2d").drawImage(img, 0, 0);
+
+    const hints = new Map();
+    const formats = [
+      ZXing.BarcodeFormat.DATA_MATRIX,
+      ZXing.BarcodeFormat.QR_CODE,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.EAN_13,
+    ];
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+    const reader = new ZXing.MultiFormatReader();
+    reader.setHints(hints);
+
+    const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+    const result = reader.decode(binaryBitmap);
+    const text = result.getText();
+
+    // Parse the barcode text — DigiKey 2D codes contain structured data
+    const parsed = parseBarcodeText(text);
+
+    if (parsed.mfrPartNumber || parsed.supplierPartNumber) {
+      setCamStatus(`✓ Barcode scanned! (${result.getBarcodeFormat()})`, "ok");
+      await handleScanResult({
+        mfrPartNumber: parsed.mfrPartNumber || parsed.supplierPartNumber,
+        supplierPartNumber: parsed.supplierPartNumber || "",
+        supplier: parsed.supplier || "Unknown",
+        description: parsed.description || ""
+      }, dataUrl, "Barcode Scanner (Free)");
+    } else {
+      setCamStatus("Barcode found but could not extract part number. Try AI Vision mode.", "warn");
+      document.getElementById("scanMfrPn").value = text.substring(0, 50);
+    }
+
+  } catch(e) {
+    // No barcode found — suggest switching to AI
+    setCamStatus("⚠ No barcode detected. Try AI Vision mode or reposition the label.", "warn");
+    toast("No barcode found — switch to AI Vision mode");
+  }
+}
+
+function parseBarcodeText(text) {
+  const result = { mfrPartNumber: "", supplierPartNumber: "", supplier: "", description: "" };
+
+  // DigiKey 2D DataMatrix format: [)>\u001e06\u001dPN...\u001dMFR...
+  // Fields separated by GS (ASCII 29) character
+  if (text.includes("\u001d") || text.includes("\u001e")) {
+    const fields = text.split(/[\u001d\u001e\r\n]+/).map(f => f.trim()).filter(f => f);
+    for (const field of fields) {
+      if (field.startsWith("P") && field.length > 3) result.supplierPartNumber = field.slice(1);
+      else if (field.startsWith("1P")) result.mfrPartNumber = field.slice(2);
+      else if (field.startsWith("Q")) result.quantity = parseInt(field.slice(1));
+      else if (field.startsWith("K")) result.poNumber = field.slice(1);
+    }
+    result.supplier = "DigiKey";
+    return result;
+  }
+
+  // Mouser format check
+  if (text.includes("[)>")) {
+    result.supplier = "Mouser";
+  }
+
+  // Plain text — might just be the PN directly
+  const cleaned = text.toUpperCase().trim().replace(/\s+/g, "");
+  if (cleaned.endsWith("-ND")) {
+    result.supplierPartNumber = cleaned;
+    result.supplier = "DigiKey";
+  } else if (/^[A-Z0-9\-]{6,}$/.test(cleaned)) {
+    result.mfrPartNumber = cleaned;
+  }
+
+  return result;
 }
 
 // ════════════════════════════════════════════════════════════
