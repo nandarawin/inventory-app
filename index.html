@@ -650,6 +650,10 @@ async function sheetAppendTx(row) {
 // ════════════════════════════════════════════════════════════
 async function loadDashboard() {
   document.getElementById("topbarStatus").textContent = "Loading…";
+  document.getElementById("stat-parts").textContent = "—";
+  document.getElementById("stat-qty").textContent = "—";
+  document.getElementById("stat-low").textContent = "—";
+  document.getElementById("stat-tx").textContent = "—";
   try {
     const rows = await sheetRead();
     const data = rows.slice(1);
@@ -700,8 +704,16 @@ async function loadDashboard() {
 
     document.getElementById("topbarStatus").textContent = `${totalParts} parts · ${totalQty} units`;
   } catch(e) {
-    document.getElementById("topbarStatus").textContent = "Sheet error";
-    document.getElementById("lowStockList").innerHTML = `<div class="alert alert-warn">Could not load sheet. Check config.</div>`;
+    document.getElementById("topbarStatus").textContent = "⚠ Sheet unavailable";
+    document.getElementById("stat-parts").textContent = "—";
+    document.getElementById("stat-qty").textContent = "—";
+    document.getElementById("stat-low").textContent = "—";
+    document.getElementById("lowStockList").innerHTML = `
+      <div class="alert alert-warn">
+        Could not connect to Google Sheets. Check your internet connection or try refreshing.<br>
+        <small style="color:var(--muted)">${e.message||""}</small>
+      </div>`;
+    document.getElementById("recentTxBody").innerHTML = `<tr><td colspan="5" class="empty-state">Could not load.</td></tr>`;
   }
 }
 
