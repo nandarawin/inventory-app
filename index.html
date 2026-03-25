@@ -484,7 +484,7 @@
 </div><!-- /page-wrap -->
 
 <!-- ── API KEY MODAL ── -->
-<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center">
+<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
     <div style="font-family:var(--mono);font-size:18px;font-weight:500;color:var(--accent);margin-bottom:8px">NEXWAH / Inventory</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">
@@ -574,16 +574,8 @@ const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
 // ════════════════════════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", () => {
   const savedKey  = localStorage.getItem("nexwah_anthropic_key");
-  const skipped   = localStorage.getItem("nexwah_skip_api");
-  if (savedKey) {
-    cfg.anthropicKey = savedKey;
-    loadDashboard();
-  } else if (skipped) {
-    cfg.anthropicKey = "";
-    loadDashboard();
-  } else {
-    showKeyModal();
-  }
+  cfg.anthropicKey = savedKey || "";
+  loadDashboard();
 });
 
 function skipApiKey() {
