@@ -387,8 +387,9 @@
     <div class="card">
       <div class="card-title">Upload BOM CSV — Bulk Receive</div>
       <div class="config-note">
-        Required CSV columns: <b>MfrPN, Quantity, Action, Supplier, Description</b><br>
-        Action must be <b>Receive</b> or <b>Use</b>. Parts not in inventory will be added automatically on Receive.
+        Upload any CSV file — the app will <b>automatically detect</b> which column is which.<br>
+        Works with DigiKey, Mouser, or any custom export. No need to rename columns.<br>
+        Only a <b>Part Number</b> and <b>Quantity</b> column are required. All others are optional.
       </div>
       <div class="field" style="max-width:400px;margin-bottom:14px">
         <label>Select CSV File</label>
@@ -1057,22 +1058,113 @@ async function manualUpdate() {
 }
 
 // ════════════════════════════════════════════════════════════
-// BOM CSV UPLOAD
+// BOM CSV UPLOAD — SMART COLUMN DETECTION
 // ════════════════════════════════════════════════════════════
+
+// Keyword maps for fuzzy matching
+const COLUMN_KEYWORDS = {
+  MfrPN:       ["mfrpn","mfr pn","mfr part","manufacturer part","manufacturer pn","part number","part no","partno","part#","pn","mpn","mfr#","component","item number","item no"],
+  Quantity:    ["qty","quantity","count","amount","units","unit","num","number of","how many","pieces","pcs"],
+  Action:      ["action","type","operation","transaction","receive","dispatch","use","in/out","direction"],
+  Supplier:    ["supplier","vendor","source","distributor","seller","from","company","manufacturer"],
+  Description: ["description","desc","name","component name","part name","details","info","notes","specification","spec"],
+  SupplierPN:  ["supplier pn","supplier part","order pn","order number","order no","digikey","mouser","octopart","catalog","sku"],
+  Location:    ["location","loc","bin","shelf","storage","place","position","where","drawer","box","slot"]
+};
+
+// Action value normalizer
+const ACTION_MAP = {
+  "receive":   "Receive", "in":       "Receive", "add":      "Receive",
+  "incoming":  "Receive", "stock in": "Receive", "purchase": "Receive",
+  "dispatch":  "Dispatch","out":      "Dispatch","remove":   "Dispatch",
+  "outgoing":  "Dispatch","use":      "Dispatch","consume":  "Dispatch",
+  "used":      "Dispatch","issue":    "Dispatch"
+};
+
+function detectColumns(headers) {
+  const mapping = {};
+  const usedHeaders = new Set();
+  const confidence = {};
+
+  for (const [field, keywords] of Object.entries(COLUMN_KEYWORDS)) {
+    let bestMatch = null, bestScore = 0;
+    for (const header of headers) {
+      if (usedHeaders.has(header)) continue;
+      const h = header.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "");
+      let score = 0;
+      for (const kw of keywords) {
+        if (h === kw) { score = 100; break; }
+        if (h.includes(kw) || kw.includes(h)) { score = Math.max(score, 80); }
+        // partial word match
+        const hWords = h.split(/\s+/);
+        const kWords = kw.split(/\s+/);
+        const matches = hWords.filter(w => kWords.some(k => w.includes(k) || k.includes(w)));
+        if (matches.length > 0) score = Math.max(score, 50);
+      }
+      if (score > bestScore) { bestScore = score; bestMatch = header; }
+    }
+    if (bestMatch && bestScore >= 50) {
+      mapping[field] = bestMatch;
+      confidence[field] = bestScore;
+      usedHeaders.add(bestMatch);
+    }
+  }
+  return { mapping, confidence };
+}
+
+function normalizeAction(value) {
+  if (!value) return null;
+  const v = value.toLowerCase().trim();
+  // Direct match
+  if (ACTION_MAP[v]) return ACTION_MAP[v];
+  // Partial match
+  for (const [key, normalized] of Object.entries(ACTION_MAP)) {
+    if (v.includes(key) || key.includes(v)) return normalized;
+  }
+  // If column only has one unique value type, infer
+  return null;
+}
+
 async function processCSV() {
   const file = document.getElementById("csvFile").files[0];
   if (!file) { setStatus("bomStatus", "No file selected.", "err"); return; }
 
-  setStatus("bomStatus", '<span class="spinner"></span>Reading file…', "loading");
+  setStatus("bomStatus", '<span class="spinner"></span>Reading and analysing file…', "loading");
 
   const text = await file.text();
-  const rows = csvToObjects(text);
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { setStatus("bomStatus", "CSV is empty or has no data rows.", "err"); return; }
 
-  if (!rows.length) { setStatus("bomStatus", "CSV is empty or invalid.", "err"); return; }
+  // Parse headers
+  const headers = parseCSVLine(lines[0]);
+  const { mapping, confidence } = detectColumns(headers);
 
-  const required = ["MfrPN", "Quantity", "Action"];
-  for (const col of required) {
-    if (!(col in rows[0])) { setStatus("bomStatus", `Missing required column: ${col}`, "err"); return; }
+  // Check required columns
+  const required = ["MfrPN", "Quantity"];
+  const missing = required.filter(f => !mapping[f]);
+  if (missing.length > 0) {
+    setStatus("bomStatus",
+      `⚠ Could not detect required columns: <b>${missing.join(", ")}</b><br>
+      Found columns: <i>${headers.join(", ")}</i><br>
+      Tip: rename your columns to include keywords like "Part Number", "Qty", "Action"`, "err");
+    return;
+  }
+
+  // Show detected mapping to user
+  const mappingInfo = Object.entries(mapping)
+    .map(([field, header]) => `<span style="color:var(--success)">${field}</span> ← "${header}"`)
+    .join(" &nbsp;·&nbsp; ");
+
+  setStatus("bomStatus", `<span class="spinner"></span>Detected columns: ${mappingInfo} — Processing…`, "loading");
+
+  // Parse all rows using detected mapping
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const vals = parseCSVLine(lines[i]);
+    const obj = {};
+    headers.forEach((h, idx) => obj[h] = vals[idx] !== undefined ? vals[idx].trim() : "");
+    rows.push(obj);
   }
 
   // Load current sheet data once
@@ -1081,23 +1173,42 @@ async function processCSV() {
     sheetRows = await sheetRead();
   } catch(e) { setStatus("bomStatus", "Could not read sheet: " + e.message, "err"); return; }
 
+  // Detect if Action column has a single fixed value (e.g. whole file is "Receive")
+  const actionCol = mapping.Action;
+  let defaultAction = null;
+  if (!actionCol) {
+    // No action column — ask user or default to Receive
+    defaultAction = "Receive";
+  }
+
   const results = [];
   const today = todayStr();
   let processed = 0;
 
   for (const row of rows) {
-    const mfrPn   = (row.MfrPN||"").trim();
-    const qty     = parseInt(row.Quantity)||0;
-    const action  = (row.Action||"").trim();
-    const supplier= (row.Supplier||"").trim() || "Unknown";
-    const desc    = (row.Description||"").trim();
-    const suppPn  = (row.SupplierPN||"").trim();
-    const location= (row.Location||"").trim();
+    const mfrPn    = (row[mapping.MfrPN]    || "").trim();
+    const qtyRaw   = (row[mapping.Quantity]  || "").trim();
+    const qty      = parseInt(qtyRaw.replace(/[^0-9]/g, "")) || 0;
+    const supplier = (row[mapping.Supplier]  || "").trim() || "Unknown";
+    const desc     = (row[mapping.Description] || "").trim();
+    const suppPn   = (row[mapping.SupplierPN]  || "").trim();
+    const location = (row[mapping.Location]    || "").trim();
 
-    if (!mfrPn) { results.push({ status:"skip", msg:"Skipped: blank MfrPN" }); continue; }
-    if (qty <= 0) { results.push({ status:"skip", msg:`Skipped ${mfrPn}: invalid quantity` }); continue; }
-    if (!["Receive","Use","Dispatch"].includes(action)) { results.push({ status:"err", msg:`${mfrPn}: invalid action "${action}"` }); continue; }
+    // Detect action
+    let action = defaultAction;
+    if (actionCol) {
+      const rawAction = (row[actionCol] || "").trim();
+      action = normalizeAction(rawAction);
+      if (!action) {
+        results.push({ status:"warn", msg:`${mfrPn || "Row"}: unrecognised action "${rawAction}" — skipped` });
+        continue;
+      }
+    }
 
+    if (!mfrPn) { results.push({ status:"skip", msg:`Row ${rows.indexOf(row)+2}: blank part number — skipped` }); continue; }
+    if (qty <= 0) { results.push({ status:"skip", msg:`${mfrPn}: invalid quantity "${qtyRaw}" — skipped` }); continue; }
+
+    // Find in sheet
     let foundRow = null, foundIdx = -1;
     for (let i = 1; i < sheetRows.length; i++) {
       if ((sheetRows[i][2]||"").trim().toUpperCase() === mfrPn.toUpperCase()) {
@@ -1107,7 +1218,6 @@ async function processCSV() {
 
     if (!foundRow) {
       if (action === "Receive") {
-        // Row: PartNumber | Supplier | MfrPN | Description | Quantity | Location | LastUpdated
         const newRow = [suppPn, supplier, mfrPn, desc, qty, location, today];
         try {
           await sheetAppend(newRow);
@@ -1117,27 +1227,39 @@ async function processCSV() {
           processed++;
         } catch(e) { results.push({ status:"err", msg:`${mfrPn}: write failed` }); }
       } else {
-        results.push({ status:"warn", msg:`${mfrPn}: not found in inventory` });
+        results.push({ status:"warn", msg:`${mfrPn}: not found in inventory — cannot dispatch` });
       }
     } else {
-      const oldQty = parseInt(foundRow[4]||"0"); // col E = Quantity
-      let newQty = (action === "Receive") ? oldQty + qty : oldQty - qty;
-      if (newQty < 0) { results.push({ status:"err", msg:`${mfrPn}: insufficient stock (have ${oldQty})` }); continue; }
+      const oldQty = parseInt(foundRow[4]||"0");
+      let newQty = action === "Receive" ? oldQty + qty : oldQty - qty;
+      if (newQty < 0) { results.push({ status:"err", msg:`${mfrPn}: insufficient stock (have ${oldQty}, need ${qty})` }); continue; }
       try {
         await sheetUpdate(foundIdx, newQty, today);
         await sheetAppendTx([today, mfrPn, foundRow[1]||supplier, action, qty, oldQty, newQty, "BOM Upload"]);
         foundRow[4] = newQty;
-        results.push({ status:"ok", msg:`${mfrPn}: ${oldQty} → ${newQty}` });
+        results.push({ status:"ok", msg:`${mfrPn}: ${oldQty} → ${newQty} (${action})` });
         processed++;
       } catch(e) { results.push({ status:"err", msg:`${mfrPn}: update failed` }); }
     }
   }
 
-  setStatus("bomStatus", `✓ Done. ${processed} of ${rows.length} rows processed.`, "ok");
+  setStatus("bomStatus", `✓ Done. ${processed} of ${rows.length} rows processed successfully.`, "ok");
   toast(`BOM processed: ${processed} rows updated`);
 
   const colorMap = { ok:"success", skip:"warn", warn:"warn", err:"error" };
   document.getElementById("bomResults").innerHTML = `
+    <div class="card">
+      <div class="card-title">Column Detection</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Detected from your file:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+        ${Object.entries(mapping).map(([field, header]) =>
+          `<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:3px 10px;border-radius:20px;font-size:12px;font-family:var(--mono)">
+            ${field} ← "${header}"
+          </span>`
+        ).join("")}
+      </div>
+      ${!actionCol ? `<div class="alert alert-warn" style="margin-top:8px;padding:8px 12px;font-size:12px">No "Action" column found — defaulted all rows to <b>Receive</b></div>` : ""}
+    </div>
     <div class="card">
       <div class="card-title">Results (${results.length} rows)</div>
       ${results.map(r => `<div class="alert alert-${colorMap[r.status]||"info"}" style="margin-bottom:6px;padding:8px 12px">${r.msg}</div>`).join("")}
@@ -1146,10 +1268,11 @@ async function processCSV() {
 }
 
 function downloadSampleCSV() {
+  // Sample uses varied column names to demonstrate auto-detection
   const sample = [
-    { MfrPN:"SN74LVC1G08DCKR", Quantity:100, Action:"Receive", Supplier:"DigiKey", SupplierPN:"296-11602-1-ND", Description:"IC GATE AND 1CH SC70-5", Location:"Shelf A1" },
-    { MfrPN:"CL10A105KA8N",    Quantity:200, Action:"Receive", Supplier:"DigiKey", SupplierPN:"",                Description:"CAP CER 1UF 10V X5R 0603", Location:"Shelf B2" },
-    { MfrPN:"SN74LVC1G08DCKR", Quantity:5,   Action:"Dispatch",Supplier:"DigiKey", SupplierPN:"",                Description:"", Location:"" }
+    { "Part Number":"SN74LVC1G08DCKR", "Qty":100, "Action":"Receive", "Vendor":"DigiKey", "Order PN":"296-11602-1-ND", "Component Description":"IC GATE AND 1CH SC70-5", "Bin":"PB01-01" },
+    { "Part Number":"CL10A105KA8N",    "Qty":200, "Action":"Receive", "Vendor":"DigiKey", "Order PN":"",               "Component Description":"CAP CER 1UF 10V X5R 0603", "Bin":"" },
+    { "Part Number":"SN74LVC1G08DCKR", "Qty":5,   "Action":"Dispatch","Vendor":"DigiKey", "Order PN":"",               "Component Description":"", "Bin":"" }
   ];
   exportCSV("sample_bom.csv", sample);
 }
