@@ -500,6 +500,9 @@
     <button onclick="saveModalKey()" style="width:100%;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)">
       Save &amp; Continue
     </button>
+    <button onclick="skipApiKey()" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border2);padding:10px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);margin-top:8px">
+      Skip — Use Free OCR (Tesseract)
+    </button>
     <div id="modalError" style="color:var(--error);font-size:12px;margin-top:10px;display:none">
       Key should start with sk-ant- — please check and try again.
     </div>
@@ -570,14 +573,26 @@ const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
 // INIT
 // ════════════════════════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", () => {
-  const savedKey = localStorage.getItem("nexwah_anthropic_key");
+  const savedKey  = localStorage.getItem("nexwah_anthropic_key");
+  const skipped   = localStorage.getItem("nexwah_skip_api");
   if (savedKey) {
     cfg.anthropicKey = savedKey;
+    loadDashboard();
+  } else if (skipped) {
+    cfg.anthropicKey = "";
     loadDashboard();
   } else {
     showKeyModal();
   }
 });
+
+function skipApiKey() {
+  cfg.anthropicKey = "";
+  localStorage.setItem("nexwah_skip_api", "true");
+  document.getElementById("keyModal").style.display = "none";
+  loadDashboard();
+  toast("Using free Tesseract OCR for scanning.");
+}
 
 function showKeyModal() {
   document.getElementById("keyModal").style.display = "flex";
