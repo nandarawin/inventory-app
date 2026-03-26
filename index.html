@@ -308,21 +308,6 @@
 
       <div class="scanner-layout">
         <div>
-          <!-- Scan Method Toggle -->
-          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-            <button id="methodBarcode" onclick="setScanMethod('barcode')"
-              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--accent);border-radius:8px;cursor:pointer;background:var(--accent);color:#fff">
-              📊 Barcode (Free)
-            </button>
-            <button id="methodOCR" onclick="setScanMethod('ocr')"
-              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--surface2);color:var(--muted)">
-              🤖 AI Vision
-            </button>
-          </div>
-          <div id="scanMethodLabel" style="font-size:11px;color:var(--muted);margin-bottom:10px">
-            📊 <b>Barcode mode</b> — free, instant, 100% accurate
-          </div>
-
           <div class="video-wrap">
             <video id="video" autoplay playsinline muted></video>
             <div class="scan-box-border"></div>
@@ -812,22 +797,7 @@ async function renderTransactions() {
 // ════════════════════════════════════════════════════════════
 // SCAN MODE TOGGLE
 // ════════════════════════════════════════════════════════════
-let scanMode   = "receive";
-let scanMethod = "barcode"; // "barcode" or "ocr"
-
-function setScanMethod(method) {
-  scanMethod = method;
-  const isBarcode = method === "barcode";
-  document.getElementById("methodBarcode").style.background   = isBarcode ? "var(--accent)" : "var(--surface2)";
-  document.getElementById("methodBarcode").style.color        = isBarcode ? "#fff" : "var(--muted)";
-  document.getElementById("methodBarcode").style.borderColor  = isBarcode ? "var(--accent)" : "var(--border2)";
-  document.getElementById("methodOCR").style.background       = !isBarcode ? "var(--accent)" : "var(--surface2)";
-  document.getElementById("methodOCR").style.color            = !isBarcode ? "#fff" : "var(--muted)";
-  document.getElementById("methodOCR").style.borderColor      = !isBarcode ? "var(--accent)" : "var(--border2)";
-  document.getElementById("scanMethodLabel").innerHTML = isBarcode
-    ? "📊 <b>Barcode mode</b> — free, instant, 100% accurate"
-    : "🤖 <b>AI Vision mode</b> — reads full label text, needs API key";
-}
+let scanMode = "receive";
 
 function setScanMode(mode) {
   scanMode = mode;
@@ -907,137 +877,7 @@ async function captureAndExtract() {
   document.getElementById("scanDesc").value = "";
   document.getElementById("scanInvPanel").style.display = "none";
 
-  if (scanMethod === "barcode") {
-    await extractBarcode(cropUrl);
-  } else {
-    await extractWithClaude(cropUrl);
-  }
-}
-
-// ════════════════════════════════════════════════════════════
-// BARCODE SCANNING — ZXing (free, no API needed)
-// ════════════════════════════════════════════════════════════
-async function extractBarcode(dataUrl) {
-  setCamStatus('<span class="spinner"></span>Scanning barcode…', "loading");
-
-  if (!window.ZXing) {
-    await new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js";
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.DATA_MATRIX,
-    ZXing.BarcodeFormat.QR_CODE,
-    ZXing.BarcodeFormat.CODE_128,
-    ZXing.BarcodeFormat.CODE_39,
-    ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.PDF_417,
-  ]);
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-  const reader = new ZXing.MultiFormatReader();
-  reader.setHints(hints);
-
-  // Try multiple image processing variants
-  const variants = [
-    { label: "original",   process: (ctx, w, h) => {} },
-    { label: "high contrast", process: (ctx, w, h) => {
-      const d = ctx.getImageData(0,0,w,h);
-      for (let i=0;i<d.data.length;i+=4) {
-        const g = 0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];
-        d.data[i]=d.data[i+1]=d.data[i+2]= g>128?255:0;
-      }
-      ctx.putImageData(d,0,0);
-    }},
-    { label: "inverted", process: (ctx, w, h) => {
-      const d = ctx.getImageData(0,0,w,h);
-      for (let i=0;i<d.data.length;i+=4) {
-        const g = 0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];
-        const inv = g>128?0:255;
-        d.data[i]=d.data[i+1]=d.data[i+2]=inv;
-      }
-      ctx.putImageData(d,0,0);
-    }},
-    { label: "scaled 2x", process: null, scale: 2 },
-  ];
-
-  const img = new Image();
-  img.src = dataUrl;
-  await new Promise(r => img.onload = r);
-
-  for (const variant of variants) {
-    try {
-      const scale = variant.scale || 1;
-      const canvas = document.createElement("canvas");
-      canvas.width  = img.width  * scale;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      if (variant.process) variant.process(ctx, canvas.width, canvas.height);
-
-      const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-      const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-      const result    = reader.decode(bitmap);
-      const text      = result.getText();
-      const parsed    = parseBarcodeText(text);
-
-      if (parsed.mfrPartNumber || parsed.supplierPartNumber) {
-        setCamStatus(`✓ Barcode scanned! (${result.getBarcodeFormat()})`, "ok");
-        await handleScanResult({
-          mfrPartNumber: parsed.mfrPartNumber || parsed.supplierPartNumber,
-          supplierPartNumber: parsed.supplierPartNumber || "",
-          supplier: parsed.supplier || "Unknown",
-          description: parsed.description || ""
-        }, dataUrl, "Barcode Scanner (Free)");
-        return;
-      }
-    } catch(e) {
-      // Try next variant
-    }
-  }
-
-  // All variants failed
-  setCamStatus("⚠ No barcode detected. Tips: get closer, hold still, remove from bag, or try AI Vision mode.", "warn");
-}
-
-function parseBarcodeText(text) {
-  const result = { mfrPartNumber: "", supplierPartNumber: "", supplier: "", description: "" };
-
-  // DigiKey 2D DataMatrix format: [)>\u001e06\u001dPN...\u001dMFR...
-  // Fields separated by GS (ASCII 29) character
-  if (text.includes("\u001d") || text.includes("\u001e")) {
-    const fields = text.split(/[\u001d\u001e\r\n]+/).map(f => f.trim()).filter(f => f);
-    for (const field of fields) {
-      if (field.startsWith("P") && field.length > 3) result.supplierPartNumber = field.slice(1);
-      else if (field.startsWith("1P")) result.mfrPartNumber = field.slice(2);
-      else if (field.startsWith("Q")) result.quantity = parseInt(field.slice(1));
-      else if (field.startsWith("K")) result.poNumber = field.slice(1);
-    }
-    result.supplier = "DigiKey";
-    return result;
-  }
-
-  // Mouser format check
-  if (text.includes("[)>")) {
-    result.supplier = "Mouser";
-  }
-
-  // Plain text — might just be the PN directly
-  const cleaned = text.toUpperCase().trim().replace(/\s+/g, "");
-  if (cleaned.endsWith("-ND")) {
-    result.supplierPartNumber = cleaned;
-    result.supplier = "DigiKey";
-  } else if (/^[A-Z0-9\-]{6,}$/.test(cleaned)) {
-    result.mfrPartNumber = cleaned;
-  }
-
-  return result;
+  await extractWithClaude(cropUrl);
 }
 
 // ════════════════════════════════════════════════════════════
