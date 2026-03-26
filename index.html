@@ -308,6 +308,21 @@
 
       <div class="scanner-layout">
         <div>
+          <!-- Scan Method Toggle -->
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <button id="methodBarcode" onclick="setScanMethod('barcode')"
+              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--accent);border-radius:8px;cursor:pointer;background:var(--accent);color:#fff">
+              📊 Barcode (Free)
+            </button>
+            <button id="methodOCR" onclick="setScanMethod('ocr')"
+              style="flex:1;padding:8px;font-size:12px;font-weight:600;font-family:var(--sans);border:2px solid var(--border2);border-radius:8px;cursor:pointer;background:var(--surface2);color:var(--muted)">
+              🤖 AI Vision
+            </button>
+          </div>
+          <div id="scanMethodLabel" style="font-size:11px;color:var(--muted);margin-bottom:10px">
+            📊 <b>Barcode mode</b> — free, instant, 100% accurate
+          </div>
+
           <div class="video-wrap">
             <video id="video" autoplay playsinline muted></video>
             <div class="scan-box-border"></div>
@@ -484,7 +499,7 @@
 </div><!-- /page-wrap -->
 
 <!-- ── API KEY MODAL ── -->
-<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center">
+<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
     <div style="font-family:var(--mono);font-size:18px;font-weight:500;color:var(--accent);margin-bottom:8px">NEXWAH / Inventory</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">
@@ -499,6 +514,9 @@
     </div>
     <button onclick="saveModalKey()" style="width:100%;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)">
       Save &amp; Continue
+    </button>
+    <button onclick="skipApiKey()" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border2);padding:10px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);margin-top:8px">
+      Skip — Use Free OCR (Tesseract)
     </button>
     <div id="modalError" style="color:var(--error);font-size:12px;margin-top:10px;display:none">
       Key should start with sk-ant- — please check and try again.
@@ -558,7 +576,7 @@
 // ════════════════════════════════════════════════════════════
 // APPS SCRIPT URL — hardcoded, no need to change
 // ════════════════════════════════════════════════════════════
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzT_0t-lZbjvlLj7Qx3q8KPOtS7aEIHhNrUkVfQnuHkdtJrVov3vAPF_j8GsCOveo4m/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwn4NtlsIHr25yN0tdm3heuY_ihdRMMgghxQClRlr74bBhhBATyEzKRCg6FKPYMbIp7/exec";
 
 // ── State ──────────────────────────────────────────────────
 let cfg = { sheetName: "Sheet1", anthropicKey: "" };
@@ -570,14 +588,18 @@ const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
 // INIT
 // ════════════════════════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", () => {
-  const savedKey = localStorage.getItem("nexwah_anthropic_key");
-  if (savedKey) {
-    cfg.anthropicKey = savedKey;
-    loadDashboard();
-  } else {
-    showKeyModal();
-  }
+  const savedKey  = localStorage.getItem("nexwah_anthropic_key");
+  cfg.anthropicKey = savedKey || "";
+  loadDashboard();
 });
+
+function skipApiKey() {
+  cfg.anthropicKey = "";
+  localStorage.setItem("nexwah_skip_api", "true");
+  document.getElementById("keyModal").style.display = "none";
+  loadDashboard();
+  toast("Using free Tesseract OCR for scanning.");
+}
 
 function showKeyModal() {
   document.getElementById("keyModal").style.display = "flex";
@@ -643,6 +665,10 @@ async function sheetAppendTx(row) {
 // ════════════════════════════════════════════════════════════
 async function loadDashboard() {
   document.getElementById("topbarStatus").textContent = "Loading…";
+  document.getElementById("stat-parts").textContent = "—";
+  document.getElementById("stat-qty").textContent = "—";
+  document.getElementById("stat-low").textContent = "—";
+  document.getElementById("stat-tx").textContent = "—";
   try {
     const rows = await sheetRead();
     const data = rows.slice(1);
@@ -665,7 +691,7 @@ async function loadDashboard() {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No transactions yet.</td></tr>`;
       } else {
         tbody.innerHTML = txData.map(r => `<tr>
-          <td class="mono">${r[0]||"—"}</td>
+          <td class="mono">${formatDate(r[0])}</td>
           <td class="mono">${r[1]||"—"}</td>
           <td><span class="badge badge-${(r[3]||"").toLowerCase()}">${r[3]||"—"}</span></td>
           <td class="mono">${r[4]||"—"}</td>
@@ -693,8 +719,16 @@ async function loadDashboard() {
 
     document.getElementById("topbarStatus").textContent = `${totalParts} parts · ${totalQty} units`;
   } catch(e) {
-    document.getElementById("topbarStatus").textContent = "Sheet error";
-    document.getElementById("lowStockList").innerHTML = `<div class="alert alert-warn">Could not load sheet. Check config.</div>`;
+    document.getElementById("topbarStatus").textContent = "⚠ Sheet unavailable";
+    document.getElementById("stat-parts").textContent = "—";
+    document.getElementById("stat-qty").textContent = "—";
+    document.getElementById("stat-low").textContent = "—";
+    document.getElementById("lowStockList").innerHTML = `
+      <div class="alert alert-warn">
+        Could not connect to Google Sheets. Check your internet connection or try refreshing.<br>
+        <small style="color:var(--muted)">${e.message||""}</small>
+      </div>`;
+    document.getElementById("recentTxBody").innerHTML = `<tr><td colspan="5" class="empty-state">Could not load.</td></tr>`;
   }
 }
 
@@ -721,7 +755,7 @@ async function renderInventory() {
       const qty = parseInt(r[4]) || 0;
       const low = qty <= 5;
       const dateRaw = r[6] || "";
-      const date = dateRaw ? new Date(dateRaw).toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"}) : "—";
+      const date = formatDate(r[6] || "");
       const mfrPn = (r[2]||"").replace(/'/g, "\\'");
       const suppPn = (r[0]||"").replace(/'/g, "\\'");
       const desc = (r[3]||"").replace(/'/g, "\\'");
@@ -758,7 +792,7 @@ async function renderTransactions() {
     if (!data.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No transactions yet.</td></tr>`; return; }
     tbody.innerHTML = data.map(r => {
       const dateRaw = r[0] || "";
-      const date = dateRaw ? new Date(dateRaw).toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"}) : "—";
+      const date = formatDate(dateRaw);
       return `<tr>
       <td class="mono" style="color:var(--muted)">${date}</td>
       <td class="mono">${r[1]||"—"}</td>
@@ -778,7 +812,22 @@ async function renderTransactions() {
 // ════════════════════════════════════════════════════════════
 // SCAN MODE TOGGLE
 // ════════════════════════════════════════════════════════════
-let scanMode = "receive";
+let scanMode   = "receive";
+let scanMethod = "barcode"; // "barcode" or "ocr"
+
+function setScanMethod(method) {
+  scanMethod = method;
+  const isBarcode = method === "barcode";
+  document.getElementById("methodBarcode").style.background   = isBarcode ? "var(--accent)" : "var(--surface2)";
+  document.getElementById("methodBarcode").style.color        = isBarcode ? "#fff" : "var(--muted)";
+  document.getElementById("methodBarcode").style.borderColor  = isBarcode ? "var(--accent)" : "var(--border2)";
+  document.getElementById("methodOCR").style.background       = !isBarcode ? "var(--accent)" : "var(--surface2)";
+  document.getElementById("methodOCR").style.color            = !isBarcode ? "#fff" : "var(--muted)";
+  document.getElementById("methodOCR").style.borderColor      = !isBarcode ? "var(--accent)" : "var(--border2)";
+  document.getElementById("scanMethodLabel").innerHTML = isBarcode
+    ? "📊 <b>Barcode mode</b> — free, instant, 100% accurate"
+    : "🤖 <b>AI Vision mode</b> — reads full label text, needs API key";
+}
 
 function setScanMode(mode) {
   scanMode = mode;
@@ -824,7 +873,6 @@ function stopCamera() {
 }
 
 async function captureAndExtract() {
-  if (!cfg.anthropicKey) { setCamStatus("⚠ Set your Anthropic API key in Config first.", "err"); return; }
   const video = document.getElementById("video");
   if (!video.srcObject) { setCamStatus("Start the camera first.", "err"); return; }
   const W = video.videoWidth, H = video.videoHeight;
@@ -848,10 +896,10 @@ async function captureAndExtract() {
     const g = Math.max(0, Math.min(255, (0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]-128)*1.4+128));
     d[i] = d[i+1] = d[i+2] = g;
   }
-  cctx.putImageData(imgData, 0, 0);
-  document.getElementById("cropPreview").src = crop.toDataURL("image/jpeg", 0.95);
+  const cropUrl = crop.toDataURL("image/jpeg", 0.95);
+  document.getElementById("cropPreview").src = cropUrl;
 
-  // Reset
+  // Reset UI
   document.getElementById("scanMfrPn").value = "";
   document.getElementById("scanMfrPn").style.borderColor = "var(--border2)";
   document.getElementById("scanSupplierBadge").innerHTML = "";
@@ -859,72 +907,321 @@ async function captureAndExtract() {
   document.getElementById("scanDesc").value = "";
   document.getElementById("scanInvPanel").style.display = "none";
 
-  await extractWithClaude(crop.toDataURL("image/jpeg", 0.95));
+  if (scanMethod === "barcode") {
+    await extractBarcode(cropUrl);
+  } else {
+    await extractWithClaude(cropUrl);
+  }
 }
 
+// ════════════════════════════════════════════════════════════
+// BARCODE SCANNING — ZXing (free, no API needed)
+// ════════════════════════════════════════════════════════════
+async function extractBarcode(dataUrl) {
+  setCamStatus('<span class="spinner"></span>Scanning barcode…', "loading");
+
+  if (!window.ZXing) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.DATA_MATRIX,
+    ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.CODE_39,
+    ZXing.BarcodeFormat.EAN_13,
+    ZXing.BarcodeFormat.PDF_417,
+  ]);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+  const reader = new ZXing.MultiFormatReader();
+  reader.setHints(hints);
+
+  // Try multiple image processing variants
+  const variants = [
+    { label: "original",   process: (ctx, w, h) => {} },
+    { label: "high contrast", process: (ctx, w, h) => {
+      const d = ctx.getImageData(0,0,w,h);
+      for (let i=0;i<d.data.length;i+=4) {
+        const g = 0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];
+        d.data[i]=d.data[i+1]=d.data[i+2]= g>128?255:0;
+      }
+      ctx.putImageData(d,0,0);
+    }},
+    { label: "inverted", process: (ctx, w, h) => {
+      const d = ctx.getImageData(0,0,w,h);
+      for (let i=0;i<d.data.length;i+=4) {
+        const g = 0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];
+        const inv = g>128?0:255;
+        d.data[i]=d.data[i+1]=d.data[i+2]=inv;
+      }
+      ctx.putImageData(d,0,0);
+    }},
+    { label: "scaled 2x", process: null, scale: 2 },
+  ];
+
+  const img = new Image();
+  img.src = dataUrl;
+  await new Promise(r => img.onload = r);
+
+  for (const variant of variants) {
+    try {
+      const scale = variant.scale || 1;
+      const canvas = document.createElement("canvas");
+      canvas.width  = img.width  * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (variant.process) variant.process(ctx, canvas.width, canvas.height);
+
+      const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+      const bitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+      const result    = reader.decode(bitmap);
+      const text      = result.getText();
+      const parsed    = parseBarcodeText(text);
+
+      if (parsed.mfrPartNumber || parsed.supplierPartNumber) {
+        setCamStatus(`✓ Barcode scanned! (${result.getBarcodeFormat()})`, "ok");
+        await handleScanResult({
+          mfrPartNumber: parsed.mfrPartNumber || parsed.supplierPartNumber,
+          supplierPartNumber: parsed.supplierPartNumber || "",
+          supplier: parsed.supplier || "Unknown",
+          description: parsed.description || ""
+        }, dataUrl, "Barcode Scanner (Free)");
+        return;
+      }
+    } catch(e) {
+      // Try next variant
+    }
+  }
+
+  // All variants failed
+  setCamStatus("⚠ No barcode detected. Tips: get closer, hold still, remove from bag, or try AI Vision mode.", "warn");
+}
+
+function parseBarcodeText(text) {
+  const result = { mfrPartNumber: "", supplierPartNumber: "", supplier: "", description: "" };
+
+  // DigiKey 2D DataMatrix format: [)>\u001e06\u001dPN...\u001dMFR...
+  // Fields separated by GS (ASCII 29) character
+  if (text.includes("\u001d") || text.includes("\u001e")) {
+    const fields = text.split(/[\u001d\u001e\r\n]+/).map(f => f.trim()).filter(f => f);
+    for (const field of fields) {
+      if (field.startsWith("P") && field.length > 3) result.supplierPartNumber = field.slice(1);
+      else if (field.startsWith("1P")) result.mfrPartNumber = field.slice(2);
+      else if (field.startsWith("Q")) result.quantity = parseInt(field.slice(1));
+      else if (field.startsWith("K")) result.poNumber = field.slice(1);
+    }
+    result.supplier = "DigiKey";
+    return result;
+  }
+
+  // Mouser format check
+  if (text.includes("[)>")) {
+    result.supplier = "Mouser";
+  }
+
+  // Plain text — might just be the PN directly
+  const cleaned = text.toUpperCase().trim().replace(/\s+/g, "");
+  if (cleaned.endsWith("-ND")) {
+    result.supplierPartNumber = cleaned;
+    result.supplier = "DigiKey";
+  } else if (/^[A-Z0-9\-]{6,}$/.test(cleaned)) {
+    result.mfrPartNumber = cleaned;
+  }
+
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════
+// TESSERACT PRIMARY + CLAUDE ENHANCEMENT (optional)
+// ════════════════════════════════════════════════════════════
 async function extractWithClaude(dataUrl) {
-  setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…', "loading");
+
+  // If API key available — use Claude (most accurate)
+  if (cfg.anthropicKey) {
+    setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…', "loading");
+    try {
+      const result = await tryClaudeVision(dataUrl);
+      if (result) { await handleScanResult(result, dataUrl, "Claude Vision"); return; }
+    } catch(err) {
+      setCamStatus('<span class="spinner"></span>Claude unavailable — switching to Tesseract…', "warn");
+      await new Promise(r => setTimeout(r, 600));
+    }
+  }
+
+  // No API key OR Claude failed — use Tesseract
+  setCamStatus('<span class="spinner"></span>Running Tesseract OCR… (free, no API needed)', "loading");
+  try {
+    const result = await tryTesseract(dataUrl);
+    if (result) { await handleScanResult(result, dataUrl, "Tesseract OCR (Free)"); return; }
+    setCamStatus("⚠ Could not read label. Try better lighting, hold steady, or get closer.", "err");
+  } catch(err) {
+    setCamStatus("OCR failed: " + err.message, "err");
+  }
+}
+
+async function tryClaudeVision(dataUrl) {
   const base64 = dataUrl.split(",")[1];
   const prompt = `You are an electronics label reader. Return ONLY a raw JSON object, no markdown:
 {
   "mfrPartNumber": "manufacturer part number (e.g. SN74LVC1G08DCKR). Labeled MFR PN or Mfr#.",
   "supplierPartNumber": "supplier order PN (e.g. 296-11602-1-ND). Labeled PN or P/N.",
   "supplier": "DigiKey or Mouser or Octopart or Unknown",
-  "description": "component description if visible, else empty string"
+  "description": "component description if visible, else empty string",
+  "category": "one of: Resistor, Capacitor, Inductor, IC, Transistor, Diode, Connector, Crystal, LED, Relay, Fuse, Other"
 }
+Detect category from the description (e.g. 'RES SMD' = Resistor, 'CAP CER' = Capacitor, 'IC GATE' = IC).
 Set mfrPartNumber to NOT_FOUND if not visible.`;
 
-  try {
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": cfg.anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514", max_tokens: 250,
-        messages: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
-          { type: "text", text: prompt }
-        ]}]
-      })
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": cfg.anthropicKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514", max_tokens: 300,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+        { type: "text", text: prompt }
+      ]}]
+    })
+  });
+
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data?.error?.message || "Claude API error");
+
+  const raw = (data.content||[]).map(b=>b.text||"").join("").trim();
+  const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
+  if (!parsed.mfrPartNumber || parsed.mfrPartNumber === "NOT_FOUND") return null;
+  return parsed;
+}
+
+async function tryTesseract(dataUrl) {
+  // Dynamically load Tesseract if not already loaded
+  if (!window.Tesseract) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
     });
-    const data = await resp.json();
-    if (!resp.ok) { setCamStatus("API error: " + (data?.error?.message || "Unknown"), "err"); return; }
+  }
 
-    let parsed;
-    const raw = (data.content||[]).map(b=>b.text||"").join("").trim();
-    try { parsed = JSON.parse(raw.replace(/```json|```/g,"").trim()); }
-    catch { setCamStatus("Could not parse response. Try scanning again.", "err"); return; }
+  setCamStatus('<span class="spinner"></span>Tesseract OCR running…', "loading");
 
-    if (!parsed.mfrPartNumber || parsed.mfrPartNumber === "NOT_FOUND") {
-      setCamStatus("No part number found. Reposition and try again.", "err");
-      document.getElementById("scanMfrPn").value = ""; return;
-    }
+  // Preprocess image for better OCR accuracy
+  const processedUrl = await preprocessImageForOCR(dataUrl);
 
-    const today = todayStr();
-    currentScan = { ...parsed, date: today };
-    document.getElementById("scanMfrPn").value = parsed.mfrPartNumber;
-    document.getElementById("scanMfrPn").style.borderColor = "var(--accent)";
-    document.getElementById("scanSupplierPn").value = parsed.supplierPartNumber || "";
-    document.getElementById("scanDesc").value = parsed.description || "";
-    showSupplierBadge("scanSupplierBadge", parsed.supplier);
-    setCamStatus("✓ Label read. Check the part number above — edit if needed, then check inventory.", "ok");
+  const worker = await Tesseract.createWorker("eng");
+  await worker.setParameters({
+    tessedit_pageseg_mode: "6",
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/"
+  });
 
-    // Save to scan history
-    saveScanToHistory({
-      mfrPn: parsed.mfrPartNumber,
-      supplierPn: parsed.supplierPartNumber || "",
-      supplier: parsed.supplier || "Unknown",
-      desc: parsed.description || "",
-      date: today,
-      image: dataUrl
-    });
+  const { data: { text } } = await worker.recognize(processedUrl);
+  await worker.terminate();
 
-    await lookupForScan(parsed.mfrPartNumber);
-  } catch(err) { setCamStatus("Network error: " + err.message, "err"); }
+  const lines = text.toUpperCase().split("\n").map(l => l.trim()).filter(l => l.length > 3);
+  const fullText = lines.join(" ");
+
+  // Try multiple patterns to find part numbers
+  const patterns = [
+    // DigiKey style: 296-11602-1-ND
+    /\b(\d{3}-\d{4,6}-\d-[A-Z]{2})\b/,
+    // Mouser style: 595-SN74LVC1G08DCKR
+    /\b(\d{3}-[A-Z0-9]{6,})\b/,
+    // General alphanumeric PN: SN74LVC1G08DCKR, CL10A105KA8N
+    /\b([A-Z]{2,4}\d{2,}[A-Z0-9]{4,})\b/,
+    // Dashed PN: MB10S-13, HDS10M-13
+    /\b([A-Z]{2,}[0-9]{2,}[A-Z0-9]*[-][A-Z0-9]+)\b/,
+    // Any long alphanumeric 6+ chars
+    /\b([A-Z0-9]{6,})\b/
+  ];
+
+  let bestMatch = null;
+  for (const pattern of patterns) {
+    const matches = fullText.match(pattern);
+    if (matches) { bestMatch = matches[1]; break; }
+  }
+
+  if (!bestMatch) return null;
+
+  // Try to detect supplier from text
+  let supplier = "Unknown";
+  if (fullText.includes("DIGIKEY") || fullText.includes("DIGI-KEY")) supplier = "DigiKey";
+  else if (fullText.includes("MOUSER")) supplier = "Mouser";
+
+  return {
+    mfrPartNumber: bestMatch,
+    supplierPartNumber: "",
+    supplier,
+    description: ""
+  };
+}
+
+async function preprocessImageForOCR(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      // Scale up 2x for better OCR
+      canvas.width  = img.width * 2;
+      canvas.height = img.height * 2;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Convert to grayscale + increase contrast
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        let gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+        // High contrast threshold
+        gray = gray > 128 ? 255 : 0;
+        d[i] = d[i+1] = d[i+2] = gray;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.src = dataUrl;
+  });
+}
+
+async function handleScanResult(parsed, dataUrl, method) {
+  const today = todayStr();
+  currentScan = { ...parsed, date: today };
+
+  document.getElementById("scanMfrPn").value = parsed.mfrPartNumber;
+  document.getElementById("scanMfrPn").style.borderColor = "var(--accent)";
+  document.getElementById("scanSupplierPn").value = parsed.supplierPartNumber || "";
+  document.getElementById("scanDesc").value = parsed.description || "";
+  showSupplierBadge("scanSupplierBadge", parsed.supplier);
+  setCamStatus(`✓ Label read via <b>${method}</b>. Edit if needed, then check inventory.`, "ok");
+
+  // Save to scan history
+  saveScanToHistory({
+    mfrPn: parsed.mfrPartNumber,
+    supplierPn: parsed.supplierPartNumber || "",
+    supplier: parsed.supplier || "Unknown",
+    desc: parsed.description || "",
+    date: today,
+    image: dataUrl
+  });
+
+  await lookupForScan(parsed.mfrPartNumber);
 }
 
 function showSupplierBadge(elId, supplier) {
@@ -1010,14 +1307,31 @@ function showScanInvPanel(row, rowIdx) {
         <button class="btn btn-success" onclick="scanAddStock(${rowIdx}, ${qty})">+ Add Stock</button>
       </div>`;
   } else {
+    // Auto-assign location in background
+    const category = currentScan?.category || "Other";
     panel.className = "inv-action notfound";
     panel.innerHTML = `
       <div class="inv-action-title">＋ New Part</div>
-      <div class="inv-action-info">Not found in inventory. Set quantity and add it.</div>
+      <div class="inv-action-info">Not found in inventory. Auto-assigning location…</div>
       <div class="qty-row">
         <div class="field"><label>Initial Qty</label><input type="number" id="scanQty" value="1" min="1" /></div>
-        <button class="btn btn-primary" onclick="scanAddNew()">Add to Inventory</button>
-      </div>`;
+        <button class="btn btn-primary" onclick="scanAddNew()" id="scanAddNewBtn" disabled>Add to Inventory</button>
+      </div>
+      <div id="autoLocationStatus" style="font-size:12px;color:var(--muted);margin-top:8px">🔍 Detecting category and assigning location…</div>`;
+
+    // Auto assign location async
+    autoAssignLocation(category).then(loc => {
+      if (loc) {
+        document.getElementById("scanLocation").value = loc;
+        document.getElementById("autoLocationStatus").innerHTML =
+          `📍 Auto-assigned: <b style="color:var(--accent)">${loc}</b> (${category}) — edit if needed`;
+      } else {
+        document.getElementById("autoLocationStatus").innerHTML =
+          `⚠ Could not auto-assign — enter location manually`;
+      }
+      const btn = document.getElementById("scanAddNewBtn");
+      if (btn) btn.disabled = false;
+    });
   }
 }
 
@@ -1027,14 +1341,21 @@ async function scanAddNew() {
   const desc     = document.getElementById("scanDesc").value.trim();
   const suppPn   = document.getElementById("scanSupplierPn").value.trim();
   const location = document.getElementById("scanLocation").value.trim();
-  // Row: PartNumber | Supplier | MfrPN | Description | Quantity | Location | LastUpdated
-  const row = [suppPn, currentScan.supplier, currentScan.mfrPartNumber, desc, qty, location, currentScan.date];
-  setCamStatus('<span class="spinner"></span>Adding to sheet…', "loading");
+
+  setCamStatus('<span class="spinner"></span>Adding to inventory…', "loading");
+
+  // If no location yet, try auto-assign one more time
+  let finalLocation = location;
+  if (!finalLocation) {
+    finalLocation = await autoAssignLocation(currentScan.category || "Other") || "";
+  }
+
+  const row = [suppPn, currentScan.supplier, currentScan.mfrPartNumber, desc, qty, finalLocation, currentScan.date];
   const res = await sheetAppend(row);
   if (res.trim() !== "ok") { setCamStatus("Sheet error: " + res, "err"); return; }
-  await sheetAppendTx([currentScan.date, currentScan.mfrPartNumber, currentScan.supplier, "Receive", qty, 0, qty, `Location: ${location||"—"}`]);
-  setCamStatus(`✓ Added ${currentScan.mfrPartNumber} × ${qty} at ${location||"no location"}.`, "ok");
-  toast(`Added ${currentScan.mfrPartNumber} × ${qty}`);
+  await sheetAppendTx([currentScan.date, currentScan.mfrPartNumber, currentScan.supplier, "Receive", qty, 0, qty, `Location: ${finalLocation||"—"}`]);
+  setCamStatus(`✓ Added ${currentScan.mfrPartNumber} × ${qty} → 📍 ${finalLocation||"no location"}.`, "ok");
+  toast(`Added ${currentScan.mfrPartNumber} at ${finalLocation||"—"}`);
   document.getElementById("scanInvPanel").style.display = "none";
 }
 
@@ -1614,10 +1935,85 @@ function renderScanHistory() {
 }
 
 // ════════════════════════════════════════════════════════════
+// AUTO LOCATION ASSIGNMENT — one box per component type, 50 slots per box
+// ════════════════════════════════════════════════════════════
+const SLOTS_PER_BOX = 50;
+const VALID_CATEGORIES = ["Resistor","Capacitor","Inductor","IC","Transistor","Diode","Connector","Crystal","LED","Relay","Fuse","Other"];
+
+async function autoAssignLocation(category) {
+  if (!category || !VALID_CATEGORIES.includes(category)) category = "Other";
+
+  try {
+    const resp = await fetch(`${APPS_SCRIPT_URL}?action=read&sheet=Locations`);
+    const rows = await resp.json();
+
+    // Find existing box for this category that still has slots available
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][1]||"").trim().toLowerCase() === category.toLowerCase()) {
+        const slotsUsed = parseInt(rows[i][2]||"0");
+        if (slotsUsed < SLOTS_PER_BOX) {
+          const nextSlot = slotsUsed + 1;
+          const slotLabel = `${rows[i][0]}-${String(nextSlot).padStart(2,"0")}`;
+          // Update slots used count
+          await fetch(`${APPS_SCRIPT_URL}?action=updateLocationSlots&sheet=Locations&rowIndex=${i+1}&slotsUsed=${nextSlot}`);
+          return `${slotLabel} : ${category}`;
+        }
+        // This box is full — continue searching for another box of same category
+      }
+    }
+
+    // No box with space found — create new box
+    let maxBox = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const match = (rows[i][0]||"").match(/PB(\d+)/i);
+      if (match) maxBox = Math.max(maxBox, parseInt(match[1]));
+    }
+    const newBoxNum = String(maxBox + 1).padStart(2, "0");
+    const newBox = `PB${newBoxNum}`;
+
+    // Save new box to Locations sheet with 1 slot used
+    await fetch(`${APPS_SCRIPT_URL}?action=append&sheet=Locations&row=${encodeURIComponent(JSON.stringify([newBox, category, 1]))}`);
+
+    return `${newBox}-01 : ${category}`;
+  } catch(e) {
+    console.warn("Auto location failed:", e);
+    return "";
+  }
+}
+
+// ════════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════════
 function todayStr() {
-  return new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+  const now = new Date();
+  const day  = String(now.getDate()).padStart(2,"0");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const month = months[now.getMonth()];
+  const year  = now.getFullYear();
+  return `${day} ${month} ${year}`; // e.g. "26 Mar 2026" — plain text, Google Sheets won't convert
+}
+
+function formatDate(raw) {
+  if (!raw) return "—";
+  // Already clean format e.g. "26 Mar 2026"
+  if (typeof raw === "string" && /^\d{1,2}\s\w{3}\s\d{4}$/.test(raw.trim())) return raw.trim();
+  // ISO string like "2026-03-26T00:00:00.000Z" from Google Sheets auto-conversion
+  if (typeof raw === "string" && raw.includes("T")) {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getUTCDate()).padStart(2,"0");
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `${day} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    }
+  }
+  // Date object or serial number from Sheets
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    const day = String(d.getDate()).padStart(2,"0");
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  return String(raw);
 }
 
 function setCamStatus(msg, type) {
