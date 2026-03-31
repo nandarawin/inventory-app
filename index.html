@@ -881,31 +881,119 @@ async function captureAndExtract() {
 }
 
 // ════════════════════════════════════════════════════════════
-// TESSERACT PRIMARY + CLAUDE ENHANCEMENT (optional)
+// CLAUDE VISION → GOOGLE VISION → TESSERACT FALLBACK CHAIN
 // ════════════════════════════════════════════════════════════
+const GOOGLE_VISION_API_KEY = "AIzaSyBjzZf1DVzZFuaf9tC5SW8x9bjqp1t7HQQ";
+
 async function extractWithClaude(dataUrl) {
 
-  // If API key available — use Claude (most accurate)
+  // 1st — Claude Vision (most accurate)
   if (cfg.anthropicKey) {
     setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…', "loading");
     try {
       const result = await tryClaudeVision(dataUrl);
       if (result) { await handleScanResult(result, dataUrl, "Claude Vision"); return; }
     } catch(err) {
-      setCamStatus('<span class="spinner"></span>Claude unavailable — switching to Tesseract…', "warn");
+      setCamStatus('<span class="spinner"></span>Claude unavailable — trying Google Vision…', "warn");
       await new Promise(r => setTimeout(r, 600));
     }
   }
 
-  // No API key OR Claude failed — use Tesseract
+  // 2nd — Google Vision (free backup)
+  setCamStatus('<span class="spinner"></span>Trying Google Vision…', "loading");
+  try {
+    const result = await tryGoogleVision(dataUrl);
+    if (result) { await handleScanResult(result, dataUrl, "Google Vision"); return; }
+  } catch(err) {
+    setCamStatus('<span class="spinner"></span>Google Vision unavailable — trying Tesseract…', "warn");
+    await new Promise(r => setTimeout(r, 600));
+  }
+
+  // 3rd — Tesseract OCR (always free, runs in browser)
   setCamStatus('<span class="spinner"></span>Running Tesseract OCR… (free, no API needed)', "loading");
   try {
     const result = await tryTesseract(dataUrl);
     if (result) { await handleScanResult(result, dataUrl, "Tesseract OCR (Free)"); return; }
     setCamStatus("⚠ Could not read label. Try better lighting, hold steady, or get closer.", "err");
   } catch(err) {
-    setCamStatus("OCR failed: " + err.message, "err");
+    setCamStatus("All OCR methods failed: " + err.message, "err");
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// GOOGLE VISION — reads text from label image
+// ════════════════════════════════════════════════════════════
+async function tryGoogleVision(dataUrl) {
+  const base64 = dataUrl.split(",")[1];
+
+  const resp = await fetch(
+    `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: base64 },
+          features: [
+            { type: "TEXT_DETECTION", maxResults: 1 },
+            { type: "DOCUMENT_TEXT_DETECTION", maxResults: 1 }
+          ],
+          imageContext: { languageHints: ["en"] }
+        }]
+      })
+    }
+  );
+
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+
+  const response = data.responses[0];
+  const fullText = (response.fullTextAnnotation && response.fullTextAnnotation.text)
+                || (response.textAnnotations && response.textAnnotations[0] && response.textAnnotations[0].description)
+                || "";
+
+  if (!fullText) return null;
+
+  // Extract part number from OCR text using patterns
+  const lines = fullText.toUpperCase().split("\n").map(l => l.trim()).filter(l => l.length > 2);
+
+  // Look for MPN label patterns first
+  for (const line of lines) {
+    const match = line.match(/(?:MPN|MFR\s*PN|MANUFACTURER\s*PART|PART\s*NO?\.?|P\/N)\s*[:#\-\s]?\s*([A-Z0-9][A-Z0-9\-\.\/]{4,29})/i);
+    if (match) {
+      return {
+        mfrPartNumber: match[1].trim(),
+        supplierPartNumber: "",
+        supplier: "Unknown",
+        description: "",
+        category: "Other"
+      };
+    }
+  }
+
+  // Fallback — find best candidate token
+  const patterns = [
+    /\b([A-Z]{2,6}\d{2,}[A-Z0-9\-]{2,})\b/,
+    /\b([A-Z0-9]{2,}[-][A-Z0-9]{2,}(?:[-][A-Z0-9]+)*)\b/,
+  ];
+
+  for (const line of lines) {
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match && match[1].length >= 6) {
+        return {
+          mfrPartNumber: match[1],
+          supplierPartNumber: "",
+          supplier: fullText.toUpperCase().includes("DIGIKEY") ? "DigiKey"
+                  : fullText.toUpperCase().includes("MOUSER")  ? "Mouser" : "Unknown",
+          description: "",
+          category: "Other"
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 async function tryClaudeVision(dataUrl) {
