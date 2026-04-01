@@ -257,7 +257,7 @@
   <button class="nav-btn" onclick="showPage('inventory')">Inventory</button>
   <button class="nav-btn" onclick="showPage('transactions')">Transactions</button>
   <button class="nav-btn" onclick="showPage('scanhistory')">Scan History</button>
-
+  <button class="nav-btn" onclick="showPage('settings')">⚙ Settings</button>
 </div>
 
 <div class="page-wrap">
@@ -481,6 +481,38 @@
     </div>
   </div>
 
+  <!-- ══ SETTINGS ══ -->
+  <div id="page-settings" class="page">
+    <div class="card">
+      <div class="card-title">⚙ Settings</div>
+
+      <!-- API Key Section -->
+      <div style="margin-bottom:24px">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Anthropic API Key (Claude Vision)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          Required for AI label scanning. Get your key at
+          <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--accent)">console.anthropic.com/keys</a>
+        </div>
+        <div id="apiKeyStatus" style="margin-bottom:12px"></div>
+        <div class="field" style="max-width:500px">
+          <label>API Key</label>
+          <input type="password" id="settingsApiKey" placeholder="sk-ant-api03-..." style="font-family:var(--mono);font-size:13px" />
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveSettingsKey()">💾 Save Key</button>
+          <button class="btn btn-danger" onclick="removeSettingsKey()">🗑 Remove Key</button>
+        </div>
+        <div id="settingsKeyMsg" class="status-bar" style="margin-top:14px;display:none"></div>
+      </div>
+
+      <!-- Current Status -->
+      <div style="border-top:1px solid var(--border);padding-top:18px">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">Current Status</div>
+        <div id="settingsStatus" style="font-size:13px;color:var(--muted);line-height:2"></div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /page-wrap -->
 
 <!-- ── API KEY MODAL ── -->
@@ -615,6 +647,7 @@ function showPage(name) {
   if (name === "transactions") renderTransactions();
   if (name === "dashboard")    loadDashboard();
   if (name === "scanhistory")  renderScanHistory();
+  if (name === "settings")     loadSettingsPage();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1819,6 +1852,69 @@ async function autoAssignLocation(category) {
     console.warn("Auto location failed:", e);
     return "";
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// SETTINGS PAGE
+// ════════════════════════════════════════════════════════════
+function loadSettingsPage() {
+  const key = localStorage.getItem("nexwah_anthropic_key") || "";
+  const keyInput = document.getElementById("settingsApiKey");
+  const statusEl = document.getElementById("apiKeyStatus");
+  const settingsStatus = document.getElementById("settingsStatus");
+
+  // Show masked key if exists
+  if (key) {
+    keyInput.value = key;
+    statusEl.innerHTML = `<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:4px 12px;border-radius:20px;font-size:12px;font-family:var(--mono)">✓ API Key saved — Claude Vision active</span>`;
+  } else {
+    keyInput.value = "";
+    statusEl.innerHTML = `<span style="background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-border);padding:4px 12px;border-radius:20px;font-size:12px;font-family:var(--mono)">⚠ No API key — using Tesseract OCR</span>`;
+  }
+
+  settingsStatus.innerHTML = `
+    <b>Scanning method:</b> ${key ? "Claude Vision (AI)" : "Tesseract OCR (Free)"}<br>
+    <b>API Key:</b> ${key ? key.substring(0,20) + "..." : "Not set"}<br>
+    <b>Google Sheets:</b> Connected<br>
+    <b>App URL:</b> <a href="https://nandarawin.github.io/inventory-app" target="_blank" style="color:var(--accent)">nandarawin.github.io/inventory-app</a>
+  `;
+}
+
+function saveSettingsKey() {
+  const val = document.getElementById("settingsApiKey").value.trim();
+  const msgEl = document.getElementById("settingsKeyMsg");
+  msgEl.style.display = "block";
+
+  if (!val) {
+    msgEl.innerHTML = "⚠ Please enter an API key.";
+    msgEl.className = "status-bar err";
+    return;
+  }
+  if (!val.startsWith("sk-ant-")) {
+    msgEl.innerHTML = "⚠ Key should start with sk-ant- — please check and try again.";
+    msgEl.className = "status-bar err";
+    return;
+  }
+
+  cfg.anthropicKey = val;
+  localStorage.setItem("nexwah_anthropic_key", val);
+  msgEl.innerHTML = "✓ API key saved! Claude Vision is now active.";
+  msgEl.className = "status-bar ok";
+  loadSettingsPage();
+  toast("API key saved — Claude Vision active!");
+}
+
+function removeSettingsKey() {
+  if (!confirm("Remove API key? The app will use Tesseract OCR instead.")) return;
+  cfg.anthropicKey = "";
+  localStorage.removeItem("nexwah_anthropic_key");
+  document.getElementById("settingsApiKey").value = "";
+  const msgEl = document.getElementById("settingsKeyMsg");
+  msgEl.style.display = "block";
+  msgEl.innerHTML = "API key removed. Using Tesseract OCR.";
+  msgEl.className = "status-bar warn";
+  loadSettingsPage();
+  toast("API key removed.");
 }
 
 // ════════════════════════════════════════════════════════════
