@@ -1856,7 +1856,7 @@ async function renderScanHistory() {
     const rows = await resp.json();
     // Cols: Date | MfrPN | Supplier | SupplierPN | Description | Device
     sheetHistory = rows.slice(1).reverse().map(r => ({
-      date: r[0]||"", mfrPn: r[1]||"", supplier: r[2]||"",
+      date: formatDate(r[0]||""), mfrPn: r[1]||"", supplier: r[2]||"",
       supplierPn: r[3]||"", desc: r[4]||"", device: r[5]||"",
       fromSheet: true
     })).filter(s => {
