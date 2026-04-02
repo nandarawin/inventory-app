@@ -254,11 +254,11 @@
   <button class="nav-btn" onclick="showPage('scanner')">Scan Label</button>
   <button class="nav-btn" onclick="showPage('manual')">Manual Update</button>
   <button class="nav-btn" onclick="showPage('bom')">Order Check</button>
-  <button class="nav-btn" onclick="showPage('bulkreceive')">📥 Bulk Receive</button>
+  <button class="nav-btn" onclick="showPage('bulkreceive')">Bulk Receive</button>
   <button class="nav-btn" onclick="showPage('inventory')">Inventory</button>
   <button class="nav-btn" onclick="showPage('transactions')">Transactions</button>
   <button class="nav-btn" onclick="showPage('scanhistory')">Scan History</button>
-  <button class="nav-btn" onclick="showPage('settings')">⚙ Settings</button>
+  <button class="nav-btn" onclick="showPage('settings')">Settings</button>
 </div>
 
 <div class="page-wrap">
@@ -469,18 +469,18 @@
   <!-- ══ BULK RECEIVE ══ -->
   <div id="page-bulkreceive" class="page">
     <div class="card">
-      <div class="card-title">📥 Bulk Receive — Add New Stock from CSV</div>
+      <div class="card-title">Bulk Receive — Add New Stock from CSV</div>
       <div class="config-note">
         Upload a CSV file with new stock to add. The app auto-detects columns — no renaming needed.
         <b>Part Number</b> and <b>Quantity</b> are required. If a part already exists, quantity is added to current stock.
-        If it's a new part, it's created automatically.
+        If it is a new part, it is created automatically with auto-assigned location (PB01, PB02… 50 items per box).
       </div>
       <div class="field" style="max-width:400px;margin-bottom:14px">
         <label>Upload Stock CSV</label>
         <input type="file" id="bulkCsvFile" accept=".csv" style="padding:6px" />
       </div>
       <div class="btn-row">
-        <button class="btn btn-primary" onclick="processBulkReceive()">📥 Preview Stock</button>
+        <button class="btn btn-primary" onclick="processBulkReceive()">Preview Stock</button>
         <button class="btn btn-secondary" onclick="downloadBulkSampleCSV()">Download Sample CSV</button>
       </div>
       <div id="bulkStatus" class="status-bar" style="margin-top:14px">Upload a CSV to add new stock.</div>
@@ -492,8 +492,8 @@
       <div class="card-title">Confirm Stock Addition</div>
       <div id="bulkConfirmSummary" style="margin-bottom:16px;font-size:13px;line-height:1.8"></div>
       <div class="btn-row">
-        <button class="btn btn-success" onclick="confirmBulkReceive()">✅ Confirm & Add to Inventory</button>
-        <button class="btn btn-danger" onclick="cancelBulkReceive()">✕ Cancel</button>
+        <button class="btn btn-success" onclick="confirmBulkReceive()">Confirm — Add to Inventory</button>
+        <button class="btn btn-danger" onclick="cancelBulkReceive()">Cancel</button>
       </div>
       <div id="bulkConfirmStatus" class="status-bar" style="margin-top:14px;display:none"></div>
     </div>
@@ -1622,15 +1622,14 @@ async function processBulkReceive() {
   const { mapping } = detectColumns(headers);
 
   if (!mapping.MfrPN) {
-    setStatus("bulkStatus", `⚠ Could not detect Part Number column. Found: <i>${headers.join(", ")}</i>`, "err");
+    setStatus("bulkStatus", `Could not detect Part Number column. Found: <i>${headers.join(", ")}</i>`, "err");
     return;
   }
   if (!mapping.Quantity) {
-    setStatus("bulkStatus", `⚠ Could not detect Quantity column. Found: <i>${headers.join(", ")}</i>`, "err");
+    setStatus("bulkStatus", `Could not detect Quantity column. Found: <i>${headers.join(", ")}</i>`, "err");
     return;
   }
 
-  // Parse rows
   const csvRows = [];
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue;
@@ -1640,13 +1639,12 @@ async function processBulkReceive() {
     csvRows.push(obj);
   }
 
-  setStatus("bulkStatus", '<span class="spinner"></span>Checking against inventory…', "loading");
+  setStatus("bulkStatus", '<span class="spinner"></span>Checking inventory and assigning locations…', "loading");
 
   let sheetRows;
   try { sheetRows = await sheetRead(); }
   catch(e) { setStatus("bulkStatus", "Could not read inventory: " + e.message, "err"); return; }
 
-  // Build lookup map
   const invMap = {};
   for (let i = 1; i < sheetRows.length; i++) {
     const mfrPn = (sheetRows[i][2]||"").trim().toUpperCase();
@@ -1656,37 +1654,42 @@ async function processBulkReceive() {
   const toUpdate = [], toAdd = [], skipped = [];
 
   for (const row of csvRows) {
-    const mfrPn   = (row[mapping.MfrPN]||"").trim().toUpperCase();
-    const qty     = parseInt((row[mapping.Quantity]||"").replace(/[^0-9]/g,""))||0;
-    const desc    = (row[mapping.Description]||"").trim();
-    const supplier= (row[mapping.Supplier]||"").trim();
-    const suppPn  = (row[mapping.SupplierPN]||"").trim();
-    const location= (row[mapping.Location]||"").trim();
+    const mfrPn    = (row[mapping.MfrPN]||"").trim().toUpperCase();
+    const qty      = parseInt((row[mapping.Quantity]||"").replace(/[^0-9]/g,""))||0;
+    const desc     = (row[mapping.Description]||"").trim();
+    const supplier = (row[mapping.Supplier]||"").trim();
+    const suppPn   = (row[mapping.SupplierPN]||"").trim();
+    const location = (row[mapping.Location]||"").trim();
 
     if (!mfrPn) { skipped.push("Blank part number"); continue; }
     if (qty <= 0) { skipped.push(`${mfrPn}: invalid qty`); continue; }
 
     const inv = invMap[mfrPn];
     if (inv) {
-      // Existing part — update quantity
       toUpdate.push({ mfrPn, qty, currentQty: inv.qty, newQty: inv.qty + qty, rowIdx: inv.rowIdx, desc: desc||inv.desc, supplier: supplier||inv.supplier, location: location||inv.location });
     } else {
-      // New part — add to inventory
-      toAdd.push({ mfrPn, qty, desc, supplier, suppPn, location });
+      toAdd.push({ mfrPn, qty, desc, supplier, suppPn, location, autoLocation: "" });
+    }
+  }
+
+  // Auto-assign locations for new parts (from CSV location or auto PB system)
+  for (const item of toAdd) {
+    if (!item.location) {
+      item.autoLocation = await autoAssignLocation("Other") || "";
+    } else {
+      item.autoLocation = item.location;
     }
   }
 
   pendingBulkItems = { toUpdate, toAdd };
+  setStatus("bulkStatus", `Preview ready. ${toUpdate.length} existing parts · ${toAdd.length} new parts.`, "ok");
 
-  setStatus("bulkStatus", `✓ Preview ready. ${toUpdate.length} existing parts to update · ${toAdd.length} new parts to add.`, "ok");
-
-  // Render preview
   document.getElementById("bulkResults").innerHTML = `
     <div class="card">
       <div class="card-title">Column Detection</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${Object.entries(mapping).map(([f,h]) =>
-          `<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:3px 10px;border-radius:20px;font-size:12px;font-family:var(--mono)">${f} ← "${h}"</span>`
+          `<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:3px 10px;border-radius:20px;font-size:12px;font-family:var(--mono)">${f} — "${h}"</span>`
         ).join("")}
       </div>
     </div>
@@ -1696,21 +1699,22 @@ async function processBulkReceive() {
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
         <div style="flex:1;min-width:120px;background:var(--success-bg);border:1px solid var(--success-border);border-radius:10px;padding:12px;text-align:center">
           <div style="font-size:24px;font-weight:700;color:var(--success)">${toUpdate.length}</div>
-          <div style="font-size:11px;color:var(--success);font-weight:600">📦 Update Existing</div>
+          <div style="font-size:11px;color:var(--success);font-weight:600">Update Existing</div>
         </div>
         <div style="flex:1;min-width:120px;background:var(--accent-light);border:1px solid #c3d9ff;border-radius:10px;padding:12px;text-align:center">
           <div style="font-size:24px;font-weight:700;color:var(--accent)">${toAdd.length}</div>
-          <div style="font-size:11px;color:var(--accent);font-weight:600">➕ Add New Parts</div>
+          <div style="font-size:11px;color:var(--accent);font-weight:600">Add New Parts</div>
         </div>
       </div>
 
       ${toUpdate.length ? `
-        <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:8px">📦 EXISTING PARTS — QUANTITY WILL BE ADDED</div>
+        <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Existing Parts — Quantity Will Be Added</div>
         <div class="table-wrap" style="margin-bottom:16px">
-          <table><thead><tr><th>Mfr Part Number</th><th>Description</th><th>Current Stock</th><th>Adding</th><th>New Total</th></tr></thead>
-          <tbody>${toUpdate.map(r=>`<tr>
+          <table><thead><tr><th>Mfr Part Number</th><th>Description</th><th>Location</th><th>Current</th><th>Adding</th><th>New Total</th></tr></thead>
+          <tbody>${toUpdate.map((r,i)=>`<tr>
             <td class="mono">${r.mfrPn}</td>
             <td>${r.desc||"—"}</td>
+            <td class="mono">${r.location||"—"}</td>
             <td class="mono">${r.currentQty}</td>
             <td class="mono" style="color:var(--success);font-weight:600">+${r.qty}</td>
             <td class="mono" style="font-weight:600">${r.newQty}</td>
@@ -1718,27 +1722,29 @@ async function processBulkReceive() {
         </div>` : ""}
 
       ${toAdd.length ? `
-        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">➕ NEW PARTS — WILL BE CREATED</div>
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">New Parts — Edit Location if Needed</div>
         <div class="table-wrap" style="margin-bottom:16px">
-          <table><thead><tr><th>Mfr Part Number</th><th>Description</th><th>Supplier</th><th>Location</th><th>Qty</th></tr></thead>
-          <tbody>${toAdd.map(r=>`<tr>
+          <table><thead><tr><th>Mfr Part Number</th><th>Description</th><th>Supplier</th><th>Qty</th><th>Location (editable)</th></tr></thead>
+          <tbody>${toAdd.map((r,i)=>`<tr>
             <td class="mono">${r.mfrPn}</td>
             <td>${r.desc||"—"}</td>
             <td>${r.supplier||"—"}</td>
-            <td>${r.location||"—"}</td>
             <td class="mono" style="color:var(--accent);font-weight:600">${r.qty}</td>
+            <td><input type="text" value="${r.autoLocation}" onchange="pendingBulkItems.toAdd[${i}].autoLocation=this.value"
+              style="width:100%;padding:5px 8px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mono);font-size:12px" /></td>
           </tr>`).join("")}</tbody></table>
-        </div>` : ""}
+        </div>
+        <div style="font-size:11px;color:var(--muted)">Locations are auto-assigned using the PB system (50 items per box). Edit any location above before confirming.</div>` : ""}
 
-      ${skipped.length ? `<div style="font-size:12px;color:var(--muted)">Skipped: ${skipped.join(", ")}</div>` : ""}
+      ${skipped.length ? `<div style="font-size:12px;color:var(--muted);margin-top:8px">Skipped: ${skipped.join(", ")}</div>` : ""}
     </div>`;
 
   if (toUpdate.length > 0 || toAdd.length > 0) {
     const totalUnits = [...toUpdate, ...toAdd].reduce((s,r) => s + r.qty, 0);
     document.getElementById("bulkConfirmSummary").innerHTML =
       `Ready to receive: <b style="color:var(--success)">${toUpdate.length + toAdd.length} part types · ${totalUnits} total units</b><br>
-      ${toUpdate.length ? `<span style="color:var(--success)">📦 ${toUpdate.length} existing parts will be updated</span><br>` : ""}
-      ${toAdd.length ? `<span style="color:var(--accent)">➕ ${toAdd.length} new parts will be created</span>` : ""}`;
+      ${toUpdate.length ? `${toUpdate.length} existing parts will be updated<br>` : ""}
+      ${toAdd.length ? `${toAdd.length} new parts will be created` : ""}`;
     document.getElementById("bulkConfirmPanel").style.display = "block";
   }
 }
@@ -1765,7 +1771,7 @@ async function confirmBulkReceive() {
   // Add new parts
   for (const item of pendingBulkItems.toAdd) {
     try {
-      const row = [item.suppPn||"", item.supplier||"", item.mfrPn, item.desc||"", item.qty, item.location||"", today];
+      const row = [item.suppPn||"", item.supplier||"", item.mfrPn, item.desc||"", item.qty, item.autoLocation||"", today];
       await sheetAppend(row);
       await sheetAppendTx([today, item.mfrPn, item.supplier||"", "Receive", item.qty, 0, item.qty, "Bulk Receive"]);
       done++;
@@ -1789,9 +1795,9 @@ function cancelBulkReceive() {
 
 function downloadBulkSampleCSV() {
   exportCSV("sample_bulk_receive.csv", [
-    { "Manufacturer Part":"SN74LVC1G08DCKR", "Qty":100, "Supplier":"DigiKey", "Supplier PN":"296-11602-1-ND", "Description":"IC GATE AND 1CH SC70-5", "Location":"PB03" },
-    { "Manufacturer Part":"CL10A105KA8N",    "Qty":200, "Supplier":"DigiKey", "Supplier PN":"",               "Description":"CAP CER 1UF 10V 0603",   "Location":"PB01" },
-    { "Manufacturer Part":"GRM188R61A226ME15D","Qty":50,"Supplier":"Mouser",  "Supplier PN":"",               "Description":"CAP 22UF 10V",            "Location":"PB01" }
+    { "Manufacturer Part":"SN74LVC1G08DCKR",   "Qty":100, "Supplier":"DigiKey", "Supplier PN":"296-11602-1-ND", "Description":"IC GATE AND 1CH SC70-5", "Location":"" },
+    { "Manufacturer Part":"CL10A105KA8N",       "Qty":200, "Supplier":"DigiKey", "Supplier PN":"",              "Description":"CAP CER 1UF 10V 0603",   "Location":"" },
+    { "Manufacturer Part":"GRM188R61A226ME15D", "Qty":50,  "Supplier":"Mouser",  "Supplier PN":"",              "Description":"CAP 22UF 10V",            "Location":"" }
   ]);
 }
 
