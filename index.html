@@ -1846,8 +1846,8 @@ async function renderScanHistory() {
     (s.desc||"").toUpperCase().includes(search)
   );
 
-  // Build local scan set for dedup
-  const localPnDates = new Set(localHistory.map(s => `${s.mfrPn}|${s.date}`));
+  // Build local scan set for dedup — use MfrPN only
+  const localPns = new Set(localHistory.map(s => (s.mfrPn||"").toUpperCase()));
 
   // Load from Google Sheets (all devices)
   let sheetHistory = [];
@@ -1856,14 +1856,10 @@ async function renderScanHistory() {
     const rows = await resp.json();
     // Cols: Date | MfrPN | Supplier | SupplierPN | Description | Device
     sheetHistory = rows.slice(1).reverse().map(r => ({
-      date: formatDate(r[0]||""), mfrPn: r[1]||"", supplier: r[2]||"",
+      date: r[0]||"", mfrPn: r[1]||"", supplier: r[2]||"",
       supplierPn: r[3]||"", desc: r[4]||"", device: r[5]||"",
       fromSheet: true
-    })).filter(s => {
-      // Only show sheet entries not already in local (avoid duplicates)
-      const key = `${s.mfrPn}|${s.date}`;
-      return !localPnDates.has(key);
-    });
+    })).filter(s => !localPns.has((s.mfrPn||"").toUpperCase()));
     if (search) sheetHistory = sheetHistory.filter(s =>
       (s.mfrPn||"").toUpperCase().includes(search) ||
       (s.desc||"").toUpperCase().includes(search)
