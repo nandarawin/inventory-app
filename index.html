@@ -1710,11 +1710,13 @@ async function processBulkReceive() {
       ${toUpdate.length ? `
         <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Existing Parts — Quantity Will Be Added</div>
         <div class="table-wrap" style="margin-bottom:16px">
-          <table><thead><tr><th>Mfr Part Number</th><th>Description</th><th>Location</th><th>Current</th><th>Adding</th><th>New Total</th></tr></thead>
+          <table><thead><tr><th>Mfr Part Number</th><th>Description</th><th>Location (editable)</th><th>Current</th><th>Adding</th><th>New Total</th></tr></thead>
           <tbody>${toUpdate.map((r,i)=>`<tr>
             <td class="mono">${r.mfrPn}</td>
             <td>${r.desc||"—"}</td>
-            <td class="mono">${r.location||"—"}</td>
+            <td><input type="text" value="${r.location||""}" placeholder="e.g. PB01-01 : Resistor"
+              onchange="pendingBulkItems.toUpdate[${i}].location=this.value"
+              style="width:100%;padding:5px 8px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mono);font-size:12px" /></td>
             <td class="mono">${r.currentQty}</td>
             <td class="mono" style="color:var(--success);font-weight:600">+${r.qty}</td>
             <td class="mono" style="font-weight:600">${r.newQty}</td>
@@ -1763,6 +1765,10 @@ async function confirmBulkReceive() {
   for (const item of pendingBulkItems.toUpdate) {
     try {
       await sheetUpdate(item.rowIdx, item.newQty, today);
+      // Update location if it was changed
+      if (item.location) {
+        await fetch(`${APPS_SCRIPT_URL}?action=updateInventoryLocation&sheet=${encodeURIComponent(cfg.sheetName)}&rowIndex=${item.rowIdx}&location=${encodeURIComponent(item.location)}`);
+      }
       await sheetAppendTx([today, item.mfrPn, item.supplier, "Receive", item.qty, item.currentQty, item.newQty, "Bulk Receive"]);
       done++;
     } catch(e) { console.error("Failed to update:", item.mfrPn, e); }
