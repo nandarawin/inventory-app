@@ -986,6 +986,133 @@ async function extractWithClaude(dataUrl) {
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// GOOGLE VISION — full smart MPN extraction engine
+// ════════════════════════════════════════════════════════════
+const MPN_LABEL_REGEX = /^(MANUFACTURER\s*PART\s*(NO?\.?|NUMBER)?|MFR\s*(PN|P\/N|NO?\.?)?|MFG\s*(PN|P\/N|NO?\.?)?|MPN|MNF\s*(PN|P\/N)?|MAN\s*(PN|P\/N)?|PART\s*(NO?\.?|NUMBER|#)?|P\s*\/?\s*N|CAT\s*(NO?\.?|#)?|ITEM\s*(NO?\.?|#)?|MODEL\s*(NO?\.?)?|REF\s*(NO?\.?|#)?|型号|料号|物料编号|规格型号)\s*[:#\-\.\s]?\s*/i;
+
+const DESCRIPTION_WORDS = new Set([
+  "CAPACITOR","CAP","RESISTOR","RES","INDUCTOR","IND","TRANSISTOR","DIODE","RELAY",
+  "CONNECTOR","CONN","MODULE","SENSOR","SWITCH","VOLTAGE","REGULATOR","REG",
+  "AMPLIFIER","AMP","OSCILLATOR","CRYSTAL","XTAL","FILTER","FUSE","DISPLAY",
+  "CONTROLLER","CTRL","DRIVER","DRV","INTERFACE","ELECTROLYTIC","ELEC",
+  "CERAMIC","FILM","TANTALUM","TANT","SMD","SMT","WATT","VOLT","OHM","FARAD",
+  "HENRY","HERTZ","WITH","FOR","AND","THE","FROM","TYPE","PACK","REEL",
+  "TAPE","TRAY","BLACK","WHITE","RED","BLUE","GREEN","YELLOW","SILVER","GOLD",
+  "LEADED","LEADFREE","ROHS","COMPLIANT","GENUINE","ORIGINAL","THROUGH","HOLE"
+]);
+
+const NOISE_STARTS = new Set([
+  "INV","S/O","DATE","LOT#","LOT ","QTY","SHIP","CUST","ORDER",
+  "PACK","PO#","REV ","SER ","SERIAL","LEAD","INVOICE",
+  "PACKING","DELIVERY","PURCHASE","RECEIPT","BATCH","TOTAL","PRICE",
+  "UNIT","USD","SGD","CNY","EUR","GBP","MYR"
+]);
+
+const MFR_PREFIXES = new Set([
+  "STM","STM32","STM8","TI","LM","TL","SN","OPA","INA","REF","TPS","LMR","LMK",
+  "NXP","LPC","MKE","MK","FXOS","FXLS","MCR","MCP","PIC","ATTINY","ATMEGA","AT",
+  "ESP","ESP32","ESP8266","GRM","LQH","BLM","NFM","GCM","CGA","GJM",
+  "CRCW","RCWP","ERJ","RK73","RC","RN","IRF","IRFZ","IRLZ","IPP","IPS",
+  "BSS","BSR","BC","BD","BT","BUK","LT","LTC","LTM","LTZ",
+  "MAX","ICM","ICL","ISL","EL","HIN","ADM","AD","ADA","ADP","ADR","ADXL",
+  "BAT","BAS","BZX","BZT","MM","MBR","MB","ULN","UDN","L29","L6","STP","STF",
+  "C2012","C1608","C0402","C0603","C0805","C1206","RC0402","RC0603","RC0805","RC1206",
+  "GRM21","GRM18","GRM15","STN","TVS","HDS","MB1"
+]);
+
+function scoreMPN(raw) {
+  const pn = raw.replace(/[^A-Z0-9\-\.\/]/g,"").toUpperCase();
+  if (pn.length<4||pn.length>32) return null;
+  if (!/[A-Z]/.test(pn)) return null;
+  if (!/[0-9]/.test(pn)) return null;
+  if (/^\d{2,4}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(pn)) return null; // date pattern
+  if (/^\d{1,2}-[A-Z]{3}-\d{2,4}$/.test(pn)) return null;              // 19-DEC-2025 pattern
+  if (/^\d+$/.test(pn)) return null;
+  if (/^[A-Z]{1,3}\d{1,2}$/.test(pn)) return null;
+  if (DESCRIPTION_WORDS.has(pn)) return null;
+
+  let score=0;
+  const len=pn.length;
+  const letters=(pn.match(/[A-Z]/g)||[]).length;
+  const digits=(pn.match(/[0-9]/g)||[]).length;
+  const lr=letters/len, dr=digits/len;
+
+  if (len>=4&&len<=6)  score+=20;
+  if (len>=7&&len<=14) score+=35;
+  if (len>=15&&len<=20)score+=20;
+  if (len>20)          score-=10;
+  if (lr>0.15&&lr<0.90)score+=20;
+  if (dr>0.10&&dr<0.80)score+=20;
+  if (/^[A-Z]{2,6}\d/.test(pn))     score+=20;
+  if (/[A-Z]\d+[A-Z]/.test(pn))     score+=18;
+  if (/\d{2,}[A-Z]{1,4}$/.test(pn)) score+=12;
+  if (/^[A-Z]+$/.test(pn))           score-=30;
+
+  for (const prefix of MFR_PREFIXES) {
+    if (pn.startsWith(prefix)) { score+=40; break; }
+  }
+  if (/^(MFR|MFG|MNF|MPN|MAN|PN|REV|SER|LOT|INV|PO)/.test(pn)) score-=50;
+  if (pn.split('-').length>4) score-=10;
+
+  const tier = score>=70?"HIGH":score>=40?"MED":"LOW";
+  return { pn, score, tier };
+}
+
+function extractMPNs(ocrText) {
+  const cleaned = ocrText.replace(/[^\x20-\x7E\n]/g,' ').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const lines = cleaned.split('\n').map(l=>l.trim()).filter(Boolean);
+  const found = new Map();
+
+  const add = (raw, bonus=0, fromLabel=false) => {
+    const r=scoreMPN(raw); if (!r) return;
+    r.score+=bonus;
+    if (fromLabel) { r.tier="HIGH"; r.score+=60; }
+    const ex=found.get(r.pn);
+    if (!ex||r.score>ex.score) found.set(r.pn,r);
+  };
+
+  // Pass 1: Label-aware (highest priority)
+  for (let i=0; i<lines.length; i++) {
+    const up=lines[i].toUpperCase();
+    if (!MPN_LABEL_REGEX.test(up)) continue;
+    const afterLabel=up.replace(MPN_LABEL_REGEX,"").trim();
+    if (afterLabel.length>=4) {
+      const firstToken=afterLabel.split(/\s+/)[0];
+      add(firstToken,0,true);
+      if (!afterLabel.includes(" ")) add(afterLabel,0,true);
+    }
+    for (let offset=1; offset<=2; offset++) {
+      if (i+offset>=lines.length) break;
+      const nextLine=lines[i+offset].toUpperCase().trim();
+      if (MPN_LABEL_REGEX.test(nextLine)) break;
+      if (nextLine.length>=4&&nextLine.length<=32)
+        nextLine.split(/\s+/).forEach(t=>add(t,0,offset===1));
+    }
+  }
+
+  // Pass 2: Colon-pattern
+  for (const line of lines) {
+    const m=line.match(/(?:MPN|P\/N|PART\s*NO?\.?|MODEL)\s*[:\-]\s*([A-Z0-9][A-Z0-9\-\.\/]{3,29})/i);
+    if (m) add(m[1].toUpperCase(),20,true);
+  }
+
+  // Pass 3: Fallback token scan (only if no HIGH found)
+  const hasHigh=[...found.values()].some(r=>r.tier==="HIGH");
+  if (!hasHigh) {
+    for (const line of lines) {
+      const up=line.toUpperCase();
+      if ([...NOISE_STARTS].some(n=>up.startsWith(n))) continue;
+      up.split(/[\s,;|()\[\]]+/).forEach(t=>{ if (t.length>=4) add(t); });
+    }
+  }
+
+  const tierOrder={HIGH:0,MED:1,LOW:2};
+  return [...found.values()]
+    .sort((a,b)=>tierOrder[a.tier]-tierOrder[b.tier]||b.score-a.score)
+    .slice(0,6);
+}
+
 async function tryGoogleVision(dataUrl) {
   const base64 = dataUrl.split(",")[1];
   const resp = await fetch(
@@ -1000,7 +1127,7 @@ async function tryGoogleVision(dataUrl) {
             { type: "TEXT_DETECTION", maxResults: 1 },
             { type: "DOCUMENT_TEXT_DETECTION", maxResults: 1 }
           ],
-          imageContext: { languageHints: ["en"] }
+          imageContext: { languageHints: ["en","zh"] }
         }]
       })
     }
@@ -1013,21 +1140,15 @@ async function tryGoogleVision(dataUrl) {
                 || "";
   if (!fullText) return null;
 
-  const lines = fullText.toUpperCase().split("\n").map(l => l.trim()).filter(l => l.length > 2);
-  for (const line of lines) {
-    const match = line.match(/(?:MPN|MFR\s*PN|MANUFACTURER\s*PART|PART\s*NO?\.?|P\/N)\s*[:#\-\s]?\s*([A-Z0-9][A-Z0-9\-\.\/]{4,29})/i);
-    if (match) return { mfrPartNumber: match[1].trim(), supplierPartNumber: "", supplier: "Unknown", description: "", category: "Other" };
-  }
-  const patterns = [ /\b([A-Z]{2,6}\d{2,}[A-Z0-9\-]{2,})\b/, /\b([A-Z0-9]{2,}[-][A-Z0-9]{2,}(?:[-][A-Z0-9]+)*)\b/ ];
-  for (const line of lines) {
-    for (const pattern of patterns) {
-      const match = line.match(pattern);
-      if (match && match[1].length >= 6) {
-        return { mfrPartNumber: match[1], supplierPartNumber: "", supplier: fullText.includes("DIGIKEY") ? "DigiKey" : fullText.includes("MOUSER") ? "Mouser" : "Unknown", description: "", category: "Other" };
-      }
-    }
-  }
-  return null;
+  const candidates = extractMPNs(fullText);
+  if (!candidates.length) return null;
+
+  const top = candidates[0];
+  let supplier = "Unknown";
+  if (fullText.toUpperCase().includes("DIGIKEY")||fullText.toUpperCase().includes("DIGI-KEY")) supplier = "DigiKey";
+  else if (fullText.toUpperCase().includes("MOUSER")) supplier = "Mouser";
+
+  return { mfrPartNumber: top.pn, supplierPartNumber: "", supplier, description: "", category: "Other" };
 }
 
 async function tryClaudeVision(dataUrl) {
