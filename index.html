@@ -1173,17 +1173,21 @@ async function handleScanResult(parsed, dataUrl, method) {
   showSupplierBadge("scanSupplierBadge", parsed.supplier);
   setCamStatus(`✓ Label read via <b>${method}</b>. Edit if needed, then check inventory.`, "ok");
 
-  // Save to scan history
-  saveScanToHistory({
-    mfrPn: parsed.mfrPartNumber,
-    supplierPn: parsed.supplierPartNumber || "",
-    supplier: parsed.supplier || "Unknown",
-    desc: parsed.description || "",
-    date: today,
-    image: dataUrl
-  });
-
   await lookupForScan(parsed.mfrPartNumber);
+
+  // Save to history AFTER lookup — never blocks scanning
+  setTimeout(() => {
+    try {
+      saveScanToHistory({
+        mfrPn: parsed.mfrPartNumber,
+        supplierPn: parsed.supplierPartNumber || "",
+        supplier: parsed.supplier || "Unknown",
+        desc: parsed.description || "",
+        date: today,
+        image: dataUrl
+      });
+    } catch(e) {}
+  }, 100);
 }
 
 function showSupplierBadge(elId, supplier) {
@@ -2041,11 +2045,16 @@ function saveScanToHistory(scan) {
       date: scan.date,
       image: scan.image
     });
-    const trimmed = history.slice(0, 100);
-    localStorage.setItem("nexwah_scan_history", JSON.stringify(trimmed));
-  } catch(e) {
-    console.warn("Could not save scan history:", e);
-  }
+    // Keep only last 30 scans to avoid storage quota issues
+    const trimmed = history.slice(0, 30);
+    try {
+      localStorage.setItem("nexwah_scan_history", JSON.stringify(trimmed));
+    } catch(quotaErr) {
+      // Storage full — remove images from older entries and try again
+      const noImages = trimmed.map((s, i) => i === 0 ? s : { ...s, image: "" });
+      try { localStorage.setItem("nexwah_scan_history", JSON.stringify(noImages)); } catch(e) {}
+    }
+  } catch(e) {}
 
   // Save text-only record to Google Sheets (fire and forget — never blocks scanning)
   try {
