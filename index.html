@@ -2046,6 +2046,13 @@ function saveScanToHistory(scan) {
   } catch(e) {
     console.warn("Could not save scan history:", e);
   }
+
+  // Save text-only record to Google Sheets (fire and forget — never blocks scanning)
+  try {
+    const device = /iPhone|Android/i.test(navigator.userAgent) ? "Mobile" : "Desktop";
+    const row = [scan.date, scan.mfrPn, scan.supplier||"", scan.supplierPn||"", scan.desc||"", device];
+    fetch(`${APPS_SCRIPT_URL}?action=append&sheet=ScanHistory&row=${encodeURIComponent(JSON.stringify(row))}`);
+  } catch(e) {}
 }
 
 function getScanHistory() {
