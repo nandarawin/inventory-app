@@ -125,7 +125,17 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #c3d9ff; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 5px; }
 
-    /* ══ MERGED INVENTORY + MANUAL UPDATE ══ */
+    /* ── COLUMN MAPPING MODAL ── */
+    .col-map-row { display: flex; align-items: center; gap: 12px; }
+    .col-map-label { flex: 0 0 130px; font-size: 12px; font-weight: 600; color: var(--text); }
+    .col-map-req { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+    .col-map-req.required { background: var(--error-bg); color: var(--error); border: 1px solid var(--error-border); }
+    .col-map-req.optional { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .col-map-select { flex: 1; padding: 8px 10px; border: 1px solid var(--border2); border-radius: 8px; font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--surface); outline: none; }
+    .col-map-select:focus { border-color: var(--accent); }
+    .col-map-select.matched { border-color: var(--success); background: var(--success-bg); }
+    .col-map-select.unmatched { border-color: var(--border2); }
+  </style>
     .inv-drawer-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; }
     .inv-drawer-overlay.open { display: block; }
     .inv-drawer { position: fixed; top: 0; right: 0; width: 420px; max-width: 95vw; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -6px 0 40px rgba(0,0,0,0.15); z-index: 201; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); }
@@ -485,6 +495,23 @@
   </div>
 </div>
 
+<!-- COLUMN MAPPING MODAL -->
+<div id="colMapModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="padding:24px 28px 0">
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px" id="colMapTitle">Confirm Column Mapping</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">The app detected these column matches from your CSV. Check each one and change if needed before processing.</div>
+      <!-- preview row -->
+      <div id="colMapPreviewRow" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:12px;font-family:var(--mono);color:var(--muted);overflow-x:auto;white-space:nowrap"></div>
+    </div>
+    <div id="colMapFields" style="padding:0 28px 8px;display:flex;flex-direction:column;gap:12px"></div>
+    <div style="padding:20px 28px;border-top:1px solid var(--border);display:flex;gap:10px">
+      <button class="btn btn-primary" style="flex:1" onclick="confirmColMapping()">&#10003; Confirm &amp; Continue</button>
+      <button class="btn btn-secondary" onclick="cancelColMapping()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -498,6 +525,92 @@ const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
 // Drawer state
 let drawerRowData = null;
 let drawerAction = "Receive";
+
+// Column mapping modal state
+let colMapContext = null;
+let colMapCallback = null;
+
+const COL_MAP_FIELDS_BOM = [
+  { key: "MfrPN",       label: "Mfr Part Number", required: true  },
+  { key: "Quantity",    label: "Quantity",         required: true  },
+  { key: "Description", label: "Description",      required: false },
+  { key: "Supplier",    label: "Supplier",         required: false },
+  { key: "SupplierPN",  label: "Supplier PN",      required: false },
+];
+const COL_MAP_FIELDS_BULK = [
+  { key: "MfrPN",       label: "Mfr Part Number", required: true  },
+  { key: "Quantity",    label: "Quantity",         required: true  },
+  { key: "Description", label: "Description",      required: false },
+  { key: "Supplier",    label: "Supplier",         required: false },
+  { key: "SupplierPN",  label: "Supplier PN",      required: false },
+  { key: "Location",    label: "Location",         required: false },
+];
+
+function showColMapModal(headers, parsedRows, mode, initialMapping, callback) {
+  colMapContext = { headers, parsedRows, mode };
+  colMapCallback = callback;
+  const fields = mode === "bom" ? COL_MAP_FIELDS_BOM : COL_MAP_FIELDS_BULK;
+
+  document.getElementById("colMapTitle").textContent =
+    mode === "bom" ? "Confirm Columns \u2014 Order Check BOM" : "Confirm Columns \u2014 Bulk Receive CSV";
+
+  // First data row preview
+  const firstRow = parsedRows[0] || {};
+  const previewParts = headers.slice(0,8).map(h => `${h}: ${String(firstRow[h]||"").substring(0,18)}`);
+  document.getElementById("colMapPreviewRow").textContent = "Row 1 preview \u2014 " + previewParts.join("  \u00b7  ");
+
+  const optionsHtml = `<option value="">\u2014 not in CSV \u2014</option>` +
+    headers.map(h => `<option value="${h.replace(/"/g,'&quot;')}">${h}</option>`).join("");
+
+  document.getElementById("colMapFields").innerHTML = fields.map(f => {
+    const matched = initialMapping[f.key] || "";
+    const cls = matched ? "col-map-select matched" : "col-map-select unmatched";
+    return `<div class="col-map-row">
+      <div class="col-map-label">
+        ${f.label}
+        <span class="col-map-req ${f.required ? "required" : "optional"}">${f.required ? "required" : "optional"}</span>
+      </div>
+      <select class="${cls}" id="colmap_${f.key}" onchange="this.className='col-map-select '+(this.value?'matched':'unmatched')">
+        ${optionsHtml}
+      </select>
+    </div>`;
+  }).join("");
+
+  fields.forEach(f => {
+    const sel = document.getElementById("colmap_" + f.key);
+    if (sel && initialMapping[f.key]) sel.value = initialMapping[f.key];
+  });
+
+  document.getElementById("colMapModal").style.display = "flex";
+}
+
+function cancelColMapping() {
+  document.getElementById("colMapModal").style.display = "none";
+  colMapContext = null; colMapCallback = null;
+  toast("Cancelled.");
+}
+
+function confirmColMapping() {
+  if (!colMapContext || !colMapCallback) return;
+  const fields = colMapContext.mode === "bom" ? COL_MAP_FIELDS_BOM : COL_MAP_FIELDS_BULK;
+  const confirmedMapping = {};
+  const missing = [];
+  fields.forEach(f => {
+    const val = (document.getElementById("colmap_" + f.key)||{}).value || "";
+    if (val) confirmedMapping[f.key] = val;
+    else if (f.required) missing.push(f.label);
+  });
+  if (missing.length > 0) {
+    alert(`Required columns not mapped: ${missing.join(", ")}\n\nPlease select a column for each required field.`);
+    return;
+  }
+  document.getElementById("colMapModal").style.display = "none";
+  const { parsedRows } = colMapContext;
+  const cb = colMapCallback;
+  colMapContext = null; colMapCallback = null;
+  cb(confirmedMapping, parsedRows);
+}
+
 
 window.addEventListener("DOMContentLoaded", () => {
   cfg.anthropicKey = localStorage.getItem("nexwah_anthropic_key") || "";
@@ -1152,7 +1265,7 @@ let pendingOrderItems = [];
 async function processCSV() {
   const file=document.getElementById("csvFile").files[0];
   if (!file) { setStatus("bomStatus","No file selected.","err"); return; }
-  setStatus("bomStatus",'<span class="spinner"></span>Reading and analysing BOM\u2026',"loading");
+  setStatus("bomStatus",'<span class="spinner"></span>Reading CSV\u2026',"loading");
   document.getElementById("bomResults").innerHTML="";
   document.getElementById("bomConfirmPanel").style.display="none";
   pendingOrderItems=[];
@@ -1160,16 +1273,19 @@ async function processCSV() {
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
   if (lines.length<2) { setStatus("bomStatus","CSV is empty or has no data rows.","err"); return; }
   const headers=parseCSVLine(lines[0]);
-  const {mapping}=detectColumns(headers);
-  const missing=["MfrPN","Quantity"].filter(f=>!mapping[f]);
-  if (missing.length>0) { setStatus("bomStatus",`\u26a0 Could not detect: <b>${missing.join(", ")}</b>. Found columns: <i>${headers.join(", ")}</i>`,"err"); return; }
-  const bomRows=[];
+  const parsedRows=[];
   for (let i=1;i<lines.length;i++) {
     if (!lines[i].trim()) continue;
     const vals=parseCSVLine(lines[i]); const obj={};
     headers.forEach((h,idx)=>obj[h]=vals[idx]!==undefined?vals[idx].trim():"");
-    bomRows.push(obj);
+    parsedRows.push(obj);
   }
+  const {mapping}=detectColumns(headers);
+  setStatus("bomStatus",`CSV read: ${parsedRows.length} rows, ${headers.length} columns. Confirm column mapping\u2026`,"loading");
+  showColMapModal(headers, parsedRows, "bom", mapping, processBOMWithMapping);
+}
+
+async function processBOMWithMapping(mapping, bomRows) {
   setStatus("bomStatus",'<span class="spinner"></span>Checking inventory\u2026',"loading");
   let sheetRows;
   try { sheetRows=await sheetRead(); } catch(e) { setStatus("bomStatus","Could not read sheet: "+e.message,"err"); return; }
@@ -1194,7 +1310,7 @@ async function processCSV() {
   pendingOrderItems=[...inStock,...partial];
   setStatus("bomStatus",`\u2713 BOM checked. ${inStock.length} in stock \u00b7 ${partial.length} partial \u00b7 ${outOfStock.length} out of stock.`,"ok");
   document.getElementById("bomResults").innerHTML=`
-    <div class="card"><div class="card-title">Column Detection</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(mapping).map(([f,h])=>`<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:3px 10px;border-radius:20px;font-size:12px;font-family:var(--mono)">${f} \u2190 "${h}"</span>`).join("")}</div></div>
+    <div class="card"><div class="card-title">Column Mapping Used</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(mapping).map(([f,h])=>`<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:3px 10px;border-radius:20px;font-size:12px;font-family:var(--mono)">${f} \u2190 "${h}"</span>`).join("")}</div></div>
     <div class="card"><div class="card-title">Availability Report</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
         <div style="flex:1;min-width:120px;background:var(--success-bg);border:1px solid var(--success-border);border-radius:10px;padding:12px;text-align:center"><div style="font-size:24px;font-weight:700;color:var(--success)">${inStock.length}</div><div style="font-size:11px;color:var(--success);font-weight:600">&#9989; In Stock</div></div>
@@ -1251,9 +1367,6 @@ async function processBulkReceive() {
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
   if (lines.length<2) { setStatus("bulkStatus","CSV is empty or has no data rows.","err"); return; }
   const headers=parseCSVLine(lines[0]);
-  const {mapping}=detectColumns(headers);
-  if (!mapping.MfrPN) { setStatus("bulkStatus",`Could not detect Part Number column. Found: <i>${headers.join(", ")}</i>`,"err"); return; }
-  if (!mapping.Quantity) { setStatus("bulkStatus",`Could not detect Quantity column. Found: <i>${headers.join(", ")}</i>`,"err"); return; }
   const csvRows=[];
   for (let i=1;i<lines.length;i++) {
     if (!lines[i].trim()) continue;
@@ -1261,6 +1374,12 @@ async function processBulkReceive() {
     headers.forEach((h,idx)=>obj[h]=vals[idx]!==undefined?vals[idx].trim():"");
     csvRows.push(obj);
   }
+  const {mapping}=detectColumns(headers);
+  setStatus("bulkStatus",`CSV read: ${csvRows.length} rows, ${headers.length} columns. Confirm column mapping\u2026`,"loading");
+  showColMapModal(headers, csvRows, "bulk", mapping, processBulkWithMapping);
+}
+
+async function processBulkWithMapping(mapping, csvRows) {
   setStatus("bulkStatus",'<span class="spinner"></span>Checking inventory and assigning locations\u2026',"loading");
   let sheetRows;
   try { sheetRows=await sheetRead(); } catch(e) { setStatus("bulkStatus","Could not read inventory: "+e.message,"err"); return; }
@@ -1287,7 +1406,7 @@ async function processBulkReceive() {
   pendingBulkItems={toUpdate,toAdd};
   setStatus("bulkStatus",`Preview ready. ${toUpdate.length} existing parts \u00b7 ${toAdd.length} new parts.`,"ok");
   document.getElementById("bulkResults").innerHTML=`
-    <div class="card"><div class="card-title">Column Detection</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(mapping).map(([f,h])=>`<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:3px 10px;border-radius:20px;font-size:12px;font-family:var(--mono)">${f} \u2014 "${h}"</span>`).join("")}</div></div>
+    <div class="card"><div class="card-title">Column Mapping Used</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(mapping).map(([f,h])=>`<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);padding:3px 10px;border-radius:20px;font-size:12px;font-family:var(--mono)">${f} \u2014 "${h}"</span>`).join("")}</div></div>
     <div class="card"><div class="card-title">Stock Preview</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
         <div style="flex:1;min-width:120px;background:var(--success-bg);border:1px solid var(--success-border);border-radius:10px;padding:12px;text-align:center"><div style="font-size:24px;font-weight:700;color:var(--success)">${toUpdate.length}</div><div style="font-size:11px;color:var(--success);font-weight:600">Update Existing</div></div>
