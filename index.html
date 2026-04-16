@@ -350,7 +350,7 @@
  </div>
  </div>
  <div class="search-bar" style="margin-bottom:0">
- <input type="text" id="invSearch" placeholder="Search by part number, description, location&hellip;" oninput="renderInventory()" />
+ <input type="text" id="invSearch" placeholder="Search by part number, description, location&hellip;" oninput="filterInventory()" />
  </div>
  <div style="font-size:12px;color:var(--muted);margin-top:8px">Rows in red have &le;5 units. Use <b>+/&minus;</b> for quick adjustments, or click a row to open details.</div>
  </div>
@@ -1137,39 +1137,74 @@ async function loadDashboard() {
  }
 }
 
-// INVENTORY 
+// INVENTORY
 function escQ(s) { return String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'"); }
 let _invCache = null; // cache last successful sheet data
 
+// Called on page load, tab switch, and after stock updates — fetches from sheet
 async function renderInventory() {
- const search=(document.getElementById("invSearch").value||"").trim().toUpperCase();
- const tbody=document.getElementById("invTableBody");
- tbody.innerHTML=`<tr><td colspan="8" class="empty-state"><span class="spinner"></span>Loading\u2026</td></tr>`;
- try {
-   const rows=await sheetRead();
-   _invCache = rows; // save to cache on success
-   _renderInvRows(rows, search, tbody);
- } catch(e) {
-   if (_invCache) {
-     // Use cached data and show a soft warning
-     _renderInvRows(_invCache, search, tbody);
-     toast("Showing cached data \u2014 could not reach Google Sheets.");
-   } else {
-     tbody.innerHTML=`<tr><td colspan="8" class="empty-state">
-       <div style="color:var(--error);font-weight:600;margin-bottom:6px">Could not connect to Google Sheets</div>
-       <div style="color:var(--muted);font-size:12px">Check your internet connection and try again. If the problem persists, verify the Apps Script URL in the source file.</div>
-       <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="renderInventory()">Retry</button>
-     </td></tr>`;
-   }
- }
+  const tbody = document.getElementById("invTableBody");
+  if (!_invCache) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span class="spinner"></span>Loading\u2026</td></tr>`;
+  }
+  try {
+    const rows = await sheetRead();
+    _invCache = rows;
+    _renderInvRows(tbody);
+  } catch(e) {
+    if (_invCache) {
+      _renderInvRows(tbody);
+      toast("Showing cached data \u2014 could not reach Google Sheets.");
+    } else {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">
+        <div style="color:var(--error);font-weight:600;margin-bottom:6px">Could not connect to Google Sheets</div>
+        <div style="color:var(--muted);font-size:12px">Check your internet connection and try again.</div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="renderInventory()">Retry</button>
+      </td></tr>`;
+    }
+  }
 }
 
-function _renderInvRows(rows, search, tbody) {
- let data=rows.slice(1).map((r,i)=>({r,origIdx:i+2}));
- if (search) data=data.filter(({r})=>(r[0]||"").toUpperCase().includes(search)||(r[2]||"").toUpperCase().includes(search)||(r[3]||"").toUpperCase().includes(search)||(r[5]||"").toUpperCase().includes(search));
- data.sort((a,b)=>(a.r[2]||"").localeCompare(b.r[2]||""));
- if (!data.length) { tbody.innerHTML=`<tr><td colspan="8" class="empty-state">No results found for "${search}".</td></tr>`; return; }
- tbody.innerHTML=data.map(({r,origIdx})=>{ const qty=parseInt(r[4])||0; const low=qty<=5; const mfrPn=escQ(r[2]||""); const suppPn=escQ(r[0]||""); const supplier=escQ(r[1]||""); const desc=escQ(r[3]||""); const loc=escQ(r[5]||""); const updated=escQ(r[6]||""); return `<tr class="${low?"low-stock ":""}inv-row-clickable" onclick="openDrawer(${origIdx},'${mfrPn}','${suppPn}','${supplier}','${desc}','${loc}',${qty},'${updated}')"><td class="mono">${r[2]||"\u2014"}</td><td class="mono">${r[0]||"\u2014"}</td><td>${r[1]||"\u2014"}</td><td>${r[3]||"\u2014"}</td><td class="mono">${r[5]||"\u2014"}</td><td class="mono" style="font-weight:600${low?";color:var(--error)":""}">${qty}</td><td class="mono" style="color:var(--muted)">${formatDate(r[6]||"")}</td><td onclick="event.stopPropagation()"><div class="quick-btns"><button class="btn btn-success btn-sm" title="Receive +1" onclick="quickUpdate(${origIdx},'${mfrPn}','${supplier}',${qty},'Receive')">+</button><button class="btn btn-danger btn-sm" title="Use -1" onclick="quickUpdate(${origIdx},'${mfrPn}','${supplier}',${qty},'Use')">\u2212</button><button class="btn btn-secondary btn-sm" onclick="printLabel('${mfrPn}','${suppPn}','${desc}','${loc}','${qty}')">Print</button></div></td></tr>`; }).join("");
+// Called on every keystroke — only filters cache, no network call
+function filterInventory() {
+  const tbody = document.getElementById("invTableBody");
+  if (!_invCache) { renderInventory(); return; }
+  _renderInvRows(tbody);
+}
+
+function _renderInvRows(tbody) {
+  const search = (document.getElementById("invSearch").value || "").trim().toUpperCase();
+  let data = _invCache.slice(1).map((r,i) => ({r, origIdx: i+2}));
+  if (search) data = data.filter(({r}) =>
+    (r[0]||"").toUpperCase().includes(search) ||
+    (r[2]||"").toUpperCase().includes(search) ||
+    (r[3]||"").toUpperCase().includes(search) ||
+    (r[5]||"").toUpperCase().includes(search)
+  );
+  data.sort((a,b) => (a.r[2]||"").localeCompare(b.r[2]||""));
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No results found${search ? ' for "'+search+'"' : ''}.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(({r,origIdx}) => {
+    const qty=parseInt(r[4])||0; const low=qty<=5;
+    const mfrPn=escQ(r[2]||""); const suppPn=escQ(r[0]||""); const supplier=escQ(r[1]||"");
+    const desc=escQ(r[3]||""); const loc=escQ(r[5]||""); const updated=escQ(r[6]||"");
+    return `<tr class="${low?"low-stock ":""}inv-row-clickable" onclick="openDrawer(${origIdx},'${mfrPn}','${suppPn}','${supplier}','${desc}','${loc}',${qty},'${updated}')">
+      <td class="mono">${r[2]||"\u2014"}</td>
+      <td class="mono">${r[0]||"\u2014"}</td>
+      <td>${r[1]||"\u2014"}</td>
+      <td>${r[3]||"\u2014"}</td>
+      <td class="mono">${r[5]||"\u2014"}</td>
+      <td class="mono" style="font-weight:600${low?";color:var(--error)":""}">${qty}</td>
+      <td class="mono" style="color:var(--muted)">${formatDate(r[6]||"")}</td>
+      <td onclick="event.stopPropagation()"><div class="quick-btns">
+        <button class="btn btn-success btn-sm" onclick="quickUpdate(${origIdx},'${mfrPn}','${supplier}',${qty},'Receive')">+</button>
+        <button class="btn btn-danger btn-sm" onclick="quickUpdate(${origIdx},'${mfrPn}','${supplier}',${qty},'Use')">\u2212</button>
+        <button class="btn btn-secondary btn-sm" onclick="printLabel('${mfrPn}','${suppPn}','${desc}','${loc}','${qty}')">Print</button>
+      </div></td>
+    </tr>`;
+  }).join("");
 }
 
 async function quickUpdate(rowIdx,mfrPn,supplier,currentQty,action) {
