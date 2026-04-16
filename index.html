@@ -436,7 +436,7 @@
  <input type="text" id="scanHistorySearch" placeholder="Search by part number&hellip;" oninput="renderScanHistory()" />
  <button class="btn btn-danger" onclick="clearScanHistory()">Clear All</button>
  </div>
-
+ </div>
  <div id="scanHistoryGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;"></div>
  <div id="scanHistoryEmpty" class="card" style="display:none"><div class="empty-state">No scans saved yet.</div></div>
  <div id="scanHistoryLoading" class="card"><div class="empty-state"><span class="spinner"></span> Loading scan history&hellip;</div></div>
@@ -1084,6 +1084,7 @@ window.addEventListener("DOMContentLoaded", () => {
  cfg.anthropicKey = localStorage.getItem("nexwah_anthropic_key") || "";
  populateAllLocationDropdowns();
  loadDashboard();
+ loadSettingsPage();
 });
 
 function skipApiKey() { cfg.anthropicKey=""; localStorage.setItem("nexwah_skip_api","true"); document.getElementById("keyModal").style.display="none"; loadDashboard(); toast("Using free Tesseract OCR for scanning."); }
@@ -1396,7 +1397,20 @@ function getBadgeClass(supplier){const map={DigiKey:"badge-digikey",Mouser:"badg
 function openImgModalDirect(src){document.getElementById("imgModalSrc").src=src;document.getElementById("imgModal").classList.add("open");}
 
 // SETTINGS 
-function loadSettingsPage(){const hasKey=!!cfg.anthropicKey;document.getElementById("settingsApiKey").value=hasKey?cfg.anthropicKey:"";const keyStatusEl=document.getElementById("apiKeyStatus");keyStatusEl.innerHTML=hasKey?`<div class="alert alert-success">\u2713 API key saved. Claude Vision scanning enabled.</div>`:`<div class="alert alert-warn">No API key set. Using free OCR (Google Vision \u2192 Tesseract fallback).</div>`;document.getElementById("settingsStatus").innerHTML=`API Key: <b>${hasKey?"Set \u2713":"Not set"}</b><br>Sheet: <b>${cfg.sheetName||"Sheet1"}</b><br>Scan History: <b>Google Sheets (ScanHistory tab) &mdash; cross-device </b>`;}
+function loadSettingsPage() {
+  const hasKey = !!cfg.anthropicKey;
+  const keyInput = document.getElementById("settingsApiKey");
+  const keyStatusEl = document.getElementById("apiKeyStatus");
+  const statusEl = document.getElementById("settingsStatus");
+  if (keyInput) keyInput.value = hasKey ? cfg.anthropicKey : "";
+  if (keyStatusEl) keyStatusEl.innerHTML = hasKey
+    ? `<div class="alert alert-success">\u2713 API key saved. Claude Vision scanning enabled.</div>`
+    : `<div class="alert alert-warn">No API key set. Using free OCR (Google Vision \u2192 Tesseract fallback).</div>`;
+  if (statusEl) statusEl.innerHTML =
+    `API Key: <b>${hasKey ? "Set \u2713" : "Not set"}</b><br>` +
+    `Sheet: <b>${cfg.sheetName || "Sheet1"}</b><br>` +
+    `Scan History: <b>Google Sheets (ScanHistory tab) &mdash; cross-device</b>`;
+}
 function saveSettingsKey(){const val=document.getElementById("settingsApiKey").value.trim();const msgEl=document.getElementById("settingsKeyMsg");if(!val.startsWith("sk-ant-")){msgEl.style.display="block";msgEl.innerHTML="Key must start with sk-ant-";msgEl.className="status-bar err";return;}cfg.anthropicKey=val;localStorage.setItem("nexwah_anthropic_key",val);msgEl.style.display="block";msgEl.innerHTML="\u2713 Key saved.";msgEl.className="status-bar ok";toast("API key saved.");loadSettingsPage();}
 function removeSettingsKey(){cfg.anthropicKey="";localStorage.removeItem("nexwah_anthropic_key");document.getElementById("settingsApiKey").value="";const msgEl=document.getElementById("settingsKeyMsg");msgEl.style.display="block";msgEl.innerHTML="Key removed.";msgEl.className="status-bar warn";toast("API key removed.");loadSettingsPage();}
 
