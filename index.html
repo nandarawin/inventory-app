@@ -807,14 +807,21 @@ const TYPE_SUGGESTIONS = {
 const locSlots = {};
 LOCATIONS.forEach(l => { locSlots[l.id] = []; });
 
+// Customizable capacity per location — default 100
+const locCapacity = {};
+LOCATIONS.forEach(l => { locCapacity[l.id] = 100; });
+
 let locFilter = 'all';
 
 function pad2(n) { return String(n).padStart(2,'0'); }
+function getCapacity(locId) { return locCapacity[locId] || 100; }
 function getNextSlot(locId) {
- const used = locSlots[locId] || [];
- for (let i=1; i<=100; i++) { if (!used.includes(i)) return i; }
- return null;
+  const used = locSlots[locId] || [];
+  const cap = getCapacity(locId);
+  for (let i=1; i<=cap; i++) { if (!used.includes(i)) return i; }
+  return cap + 1; // allow beyond capacity
 }
+function isFull(locId) { return false; } // never hard-block — capacity is a soft limit
 function usedCount(locId) { return (locSlots[locId]||[]).length; }
 function slotLabel(locId, n) { return `${locId}-${pad2(n)}`; }
 
@@ -830,14 +837,13 @@ function populateAllLocationDropdowns() {
  el.innerHTML = '';
  el.appendChild(firstOpt);
  LOCATIONS.forEach(loc => {
- const next = getNextSlot(loc.id);
- const opt = document.createElement('option');
- opt.value = loc.id;
- const nameStr = loc.name ? ` · ${loc.name}` : '';
- opt.textContent = `${loc.id}${nameStr} (${usedCount(loc.id)}/100)`;
- if (!next) opt.disabled = true;
- el.appendChild(opt);
- });
+    const opt = document.createElement('option');
+    opt.value = loc.id;
+    const nameStr = loc.name ? ' · ' + loc.name : '';
+    const cap = getCapacity(loc.id);
+    opt.textContent = loc.id + nameStr + ' (' + usedCount(loc.id) + '/' + cap + ')';
+    el.appendChild(opt);
+  });
  if (currentVal) el.value = currentVal;
  });
 }
@@ -865,19 +871,20 @@ function renderLocations() {
  }
 
  filtered.forEach(loc => {
- const used = usedCount(loc.id);
- const pct = used / 100;
- const barClass = pct >= 1 ? 'full' : pct >= 0.8 ? 'warn' : '';
- const next = getNextSlot(loc.id);
- const card = document.createElement('div');
- card.className = 'loc-card';
- card.onclick = () => openLocDetail(loc.id);
- card.innerHTML = `
- <div class="loc-card-id">${loc.id}</div>
- <div class="loc-card-name ${loc.name ? '' : 'unnamed'}">${loc.name || 'Unassigned'}</div>
- <div class="loc-bar-bg"><div class="loc-bar-fill ${barClass}" style="width:${pct*100}%"></div></div>
- <div class="loc-slot-text">${used}/100 slots · next: ${next ? slotLabel(loc.id,next) : 'FULL'}</div>`;
- grid.appendChild(card);
+  const used = usedCount(loc.id);
+  const cap = getCapacity(loc.id);
+  const pct = Math.min(used / cap, 1);
+  const barClass = pct >= 1 ? 'full' : pct >= 0.8 ? 'warn' : '';
+  const next = getNextSlot(loc.id);
+  const card = document.createElement('div');
+  card.className = 'loc-card';
+  card.onclick = () => openLocDetail(loc.id);
+  card.innerHTML =
+    '<div class="loc-card-id">' + loc.id + '</div>' +
+    '<div class="loc-card-name ' + (loc.name ? '' : 'unnamed') + '">' + (loc.name || 'Unassigned') + '</div>' +
+    '<div class="loc-bar-bg"><div class="loc-bar-fill ' + barClass + '" style="width:' + (pct*100) + '%"></div></div>' +
+    '<div class="loc-slot-text">' + used + '/' + cap + ' slots · next: ' + slotLabel(loc.id, next) + '</div>';
+  grid.appendChild(card);
  });
 }
 
@@ -888,24 +895,56 @@ function setLocFilter(f, btn) {
  renderLocations();
 }
 
+let _detailLocId = null;
 function openLocDetail(locId) {
- const loc = LOCATIONS.find(l => l.id === locId);
- document.getElementById('locDetailTitle').textContent = `${locId}${loc.name ? ' · ' + loc.name : ''}`;
- document.getElementById('locDetailSubtitle').textContent = `${usedCount(locId)}/100 slots used`;
- const container = document.getElementById('locDetailSlots');
- container.innerHTML = '';
- const used = locSlots[locId] || [];
- const next = getNextSlot(locId);
- for (let i=1; i<=100; i++) {
- const chip = document.createElement('div');
- const isUsed = used.includes(i);
- const isNext = i === next;
- chip.className = 'slot-chip' + (isUsed ? ' used' : isNext ? ' next' : '');
- chip.textContent = `${locId}-${pad2(i)}`;
- chip.title = isUsed ? 'Used' : isNext ? 'Next available' : 'Available';
- container.appendChild(chip);
- }
- document.getElementById('locDetailOverlay').classList.add('open');
+  _detailLocId = locId;
+  const loc = LOCATIONS.find(l => l.id === locId);
+  const cap = getCapacity(locId);
+  const used = usedCount(locId);
+  document.getElementById('locDetailTitle').textContent = locId + (loc.name ? ' · ' + loc.name : '');
+  document.getElementById('locDetailSubtitle').innerHTML =
+    used + '/' + cap + ' slots used &nbsp;&middot;&nbsp; ' +
+    '<span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="editCapacity(\'' + locId + '\')">' +
+    'Change capacity</span>';
+  _renderDetailSlots(locId);
+  document.getElementById('locDetailOverlay').classList.add('open');
+}
+
+function _renderDetailSlots(locId) {
+  const container = document.getElementById('locDetailSlots');
+  container.innerHTML = '';
+  const used = locSlots[locId] || [];
+  const cap = getCapacity(locId);
+  const next = getNextSlot(locId);
+  const showUpTo = Math.max(cap, used.length > 0 ? Math.max(...used) : 0);
+  for (let i=1; i<=showUpTo; i++) {
+    const chip = document.createElement('div');
+    const isUsed = used.includes(i);
+    const isNext = i === next;
+    const overCap = i > cap;
+    chip.className = 'slot-chip' + (isUsed ? ' used' : isNext ? ' next' : '') + (overCap && !isUsed ? ' over-cap' : '');
+    chip.textContent = locId + '-' + pad2(i);
+    chip.title = isUsed ? 'Used' : isNext ? 'Next available' : (overCap ? 'Over capacity' : 'Available');
+    container.appendChild(chip);
+  }
+}
+
+function editCapacity(locId) {
+  const current = getCapacity(locId);
+  const val = prompt('Set capacity for ' + locId + ' (current: ' + current + '):', current);
+  if (val === null) return;
+  const num = parseInt(val);
+  if (isNaN(num) || num < 1) { alert('Please enter a valid number greater than 0.'); return; }
+  locCapacity[locId] = num;
+  const used = usedCount(locId);
+  document.getElementById('locDetailSubtitle').innerHTML =
+    used + '/' + num + ' slots used &nbsp;&middot;&nbsp; ' +
+    '<span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="editCapacity(\'' + locId + '\')">' +
+    'Change capacity</span>';
+  _renderDetailSlots(locId);
+  populateAllLocationDropdowns();
+  renderLocations();
+  toast(locId + ' capacity set to ' + num);
 }
 
 function closeLocDetail() {
@@ -957,18 +996,14 @@ function updateSlotPreview() {
  const box = document.getElementById('slotPreviewBox');
  if (!locId) { previewVal.textContent = 'Select a location'; box.style.background = 'var(--surface2)'; box.style.borderColor = 'var(--border)'; return; }
  const next = getNextSlot(locId);
- if (next) {
- previewVal.textContent = slotLabel(locId, next);
- box.style.background = 'var(--accent-light)';
- box.style.borderColor = '#c3d9ff';
- document.querySelector('.slot-preview-label').style.color = 'var(--accent)';
- previewVal.style.color = 'var(--accent)';
- } else {
- previewVal.textContent = ' LOCATION FULL';
- box.style.background = 'var(--error-bg)';
- box.style.borderColor = 'var(--error-border)';
- previewVal.style.color = 'var(--error)';
- }
+ const cap = getCapacity(locId);
+ const used = usedCount(locId);
+ const overCap = used >= cap;
+ previewVal.textContent = slotLabel(locId, next) + (overCap ? ' (over capacity)' : '');
+ box.style.background = overCap ? 'var(--warn-bg)' : 'var(--accent-light)';
+ box.style.borderColor = overCap ? 'var(--warn-border)' : '#c3d9ff';
+ document.querySelector('.slot-preview-label').style.color = overCap ? 'var(--warn)' : 'var(--accent)';
+ previewVal.style.color = overCap ? 'var(--warn)' : 'var(--accent)';
 }
 
 function confirmAddComponent() {
@@ -980,7 +1015,6 @@ function confirmAddComponent() {
  if (!name) { statusEl.style.display='block'; statusEl.innerHTML=' Enter a component name.'; statusEl.className='status-bar err'; return; }
 
  const next = getNextSlot(locId);
- if (!next) { statusEl.style.display='block'; statusEl.innerHTML=' Location is full!'; statusEl.className='status-bar err'; return; }
 
  locSlots[locId].push(next);
  const assigned = slotLabel(locId, next);
