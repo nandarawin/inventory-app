@@ -1097,7 +1097,7 @@ function showPage(name, btn) {
  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
  document.getElementById("page-"+name).classList.add("active");
  if (btn) btn.classList.add("active");
- if (name==="inventory") renderInventory();
+ if (name==="inventory") { if (_invCache) _renderInvRows(document.getElementById("invTableBody")); else renderInventory(); }
  if (name==="transactions") renderTransactions();
  if (name==="dashboard") loadDashboard();
  if (name==="scanhistory") renderScanHistory();
@@ -1176,10 +1176,7 @@ function _renderInvRows(tbody) {
   const search = (document.getElementById("invSearch").value || "").trim().toUpperCase();
   let data = _invCache.slice(1).map((r,i) => ({r, origIdx: i+2}));
   if (search) data = data.filter(({r}) =>
-    (r[0]||"").toUpperCase().includes(search) ||
-    (r[2]||"").toUpperCase().includes(search) ||
-    (r[3]||"").toUpperCase().includes(search) ||
-    (r[5]||"").toUpperCase().includes(search)
+    r.some(cell => (cell||"").toString().toUpperCase().includes(search))
   );
   data.sort((a,b) => (a.r[2]||"").localeCompare(b.r[2]||""));
   if (!data.length) {
