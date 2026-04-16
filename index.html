@@ -436,8 +436,7 @@
  <input type="text" id="scanHistorySearch" placeholder="Search by part number&hellip;" oninput="renderScanHistory()" />
  <button class="btn btn-danger" onclick="clearScanHistory()">Clear All</button>
  </div>
- <div style="font-size:12px;color:var(--muted)">Scan photos uploaded to <b>Imgur</b> (free cloud) &mdash; URL saved in Google Sheets, visible on all devices.</div>
- </div>
+
  <div id="scanHistoryGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;"></div>
  <div id="scanHistoryEmpty" class="card" style="display:none"><div class="empty-state">No scans saved yet.</div></div>
  <div id="scanHistoryLoading" class="card"><div class="empty-state"><span class="spinner"></span> Loading scan history&hellip;</div></div>
