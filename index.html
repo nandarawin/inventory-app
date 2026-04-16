@@ -198,6 +198,11 @@
  .slot-chip { padding: 5px 4px; border-radius: 6px; font-family: var(--mono); font-size: 10px; text-align: center; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
  .slot-chip.used { background: var(--success-bg); border-color: var(--success-border); color: var(--success); font-weight: 600; }
  .slot-chip.next { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  .slot-chip.over-cap { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn); }
+  .cap-edit-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; flex-wrap: wrap; }
+  .cap-edit-row label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); white-space: nowrap; }
+  .cap-edit-row input { width: 80px; padding: 5px 8px; border: 1px solid var(--border2); border-radius: 6px; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text); background: var(--surface); outline: none; text-align: center; }
+  .cap-edit-row input:focus { border-color: var(--accent); }
 
  /* Add component modal */
  .add-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 400; align-items: center; justify-content: center; padding: 16px; }
@@ -541,13 +546,19 @@
  <button class="loc-modal-close" onclick="closeLocDetail()"></button>
  </div>
  <div class="loc-modal-body">
+ <div class="cap-edit-row">
+   <label>Box Capacity</label>
+   <input type="number" id="capInput" min="1" value="100" onkeydown="if(event.key==='Enter') applyCapacity()" />
+   <button class="btn btn-primary btn-sm" onclick="applyCapacity()">Apply</button>
+   <span id="capHint" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></span>
+ </div>
  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">
- Slot Map &nbsp;·&nbsp; <span style="color:var(--accent)"></span> Next available &nbsp;<span style="color:var(--success)"></span> Used
+   Slot Map &nbsp;&middot;&nbsp; <span style="color:var(--accent)">&#9632;</span> Next &nbsp;<span style="color:var(--success)">&#9632;</span> Used &nbsp;<span style="color:#d97706">&#9632;</span> Over capacity
  </div>
  <div class="slot-grid" id="locDetailSlots"></div>
  <div style="display:flex;gap:10px;justify-content:flex-end">
- <button class="btn btn-primary btn-sm" onclick="closeLocDetail();openAddComponentModal()">+ Add Component Here</button>
- <button class="btn btn-secondary btn-sm" onclick="closeLocDetail()">Close</button>
+   <button class="btn btn-primary btn-sm" onclick="closeLocDetail();openAddComponentModal()">+ Add Component Here</button>
+   <button class="btn btn-secondary btn-sm" onclick="closeLocDetail()">Close</button>
  </div>
  </div>
  </div>
@@ -902,12 +913,26 @@ function openLocDetail(locId) {
   const cap = getCapacity(locId);
   const used = usedCount(locId);
   document.getElementById('locDetailTitle').textContent = locId + (loc.name ? ' · ' + loc.name : '');
-  document.getElementById('locDetailSubtitle').innerHTML =
-    used + '/' + cap + ' slots used &nbsp;&middot;&nbsp; ' +
-    '<span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="editCapacity(\'' + locId + '\')">' +
-    'Change capacity</span>';
+  document.getElementById('locDetailSubtitle').textContent = used + ' slots used';
+  document.getElementById('capInput').value = cap;
+  document.getElementById('capHint').textContent = used + ' used · next: ' + slotLabel(locId, getNextSlot(locId));
   _renderDetailSlots(locId);
   document.getElementById('locDetailOverlay').classList.add('open');
+}
+
+function applyCapacity() {
+  const locId = _detailLocId;
+  if (!locId) return;
+  const num = parseInt(document.getElementById('capInput').value);
+  if (isNaN(num) || num < 1) { toast('Enter a valid number greater than 0'); return; }
+  locCapacity[locId] = num;
+  const used = usedCount(locId);
+  document.getElementById('locDetailSubtitle').textContent = used + ' slots used';
+  document.getElementById('capHint').textContent = used + ' used · next: ' + slotLabel(locId, getNextSlot(locId));
+  _renderDetailSlots(locId);
+  populateAllLocationDropdowns();
+  renderLocations();
+  toast(locId + ' capacity set to ' + num);
 }
 
 function _renderDetailSlots(locId) {
@@ -927,24 +952,6 @@ function _renderDetailSlots(locId) {
     chip.title = isUsed ? 'Used' : isNext ? 'Next available' : (overCap ? 'Over capacity' : 'Available');
     container.appendChild(chip);
   }
-}
-
-function editCapacity(locId) {
-  const current = getCapacity(locId);
-  const val = prompt('Set capacity for ' + locId + ' (current: ' + current + '):', current);
-  if (val === null) return;
-  const num = parseInt(val);
-  if (isNaN(num) || num < 1) { alert('Please enter a valid number greater than 0.'); return; }
-  locCapacity[locId] = num;
-  const used = usedCount(locId);
-  document.getElementById('locDetailSubtitle').innerHTML =
-    used + '/' + num + ' slots used &nbsp;&middot;&nbsp; ' +
-    '<span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="editCapacity(\'' + locId + '\')">' +
-    'Change capacity</span>';
-  _renderDetailSlots(locId);
-  populateAllLocationDropdowns();
-  renderLocations();
-  toast(locId + ' capacity set to ' + num);
 }
 
 function closeLocDetail() {
