@@ -964,7 +964,8 @@ function renderLocations() {
  return matchFilter && matchSearch;
  });
 
- document.getElementById('locCount').textContent = filtered.length;
+ const locCountEl = document.getElementById('locCount');
+ if (locCountEl) locCountEl.textContent = filtered.length;
  grid.innerHTML = '';
 
  if (!filtered.length) {
