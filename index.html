@@ -329,6 +329,15 @@
  <div id="bomStatus" class="status-bar" style="margin-top:14px">Upload a BOM to check stock availability.</div>
  </div>
  <div id="bomResults"></div>
+ <div id="bomExportPanel" style="display:none" class="card">
+   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+     <div>
+       <div style="font-size:14px;font-weight:600;color:var(--text)">Export Results</div>
+       <div style="font-size:12px;color:var(--muted);margin-top:2px">Downloads your original BOM with a new <b>Stock Status</b> column added</div>
+     </div>
+     <button class="btn btn-primary" onclick="exportBomReport()">Download Report (.xlsx)</button>
+   </div>
+ </div>
  <div id="bomConfirmPanel" style="display:none" class="card">
  <div class="card-title">Confirm Stock Deduction</div>
  <div id="bomConfirmSummary" style="margin-bottom:16px;font-size:13px;line-height:1.8"></div>
@@ -1243,7 +1252,13 @@ function showPage(name, btn) {
 }
 
 // APPS SCRIPT HELPERS 
-async function sheetRead() { const url=`${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}`; const resp=await fetch(url); return await resp.json(); }
+async function sheetRead() {
+  const url=`${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}`;
+  const resp=await fetch(url);
+  const data=await resp.json();
+  // Normalize all cells to strings to prevent .trim()/.toUpperCase() errors
+  return data.map((row,i) => i===0 ? row : row.map(cell => cell===null||cell===undefined ? "" : String(cell)));
+}
 async function sheetAppend(row) { const url=`${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&row=${encodeURIComponent(JSON.stringify(row))}`; const resp=await fetch(url); return await resp.text(); }
 async function sheetUpdate(rowIndex,qty,date) { const url=`${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${rowIndex}&qty=${qty}&date=${encodeURIComponent(date)}`; const resp=await fetch(url); return await resp.text(); }
 async function sheetUpdateLocation(rowIndex, location) {
@@ -1662,7 +1677,89 @@ function processBulkReceive() {
     showColMapModal(headers, rows, "bulk", initialMapping, runBulkPreview);
     statusEl.innerHTML = "Confirm column mapping to continue."; statusEl.className = "status-bar";
   }).catch(e => { statusEl.innerHTML = "Error: " + e.message; statusEl.className = "status-bar err"; });
-}async function runBomCheck(mapping,rows){document.getElementById("bomStatus").innerHTML='<span class="spinner"></span>Checking availability\u2026';document.getElementById("bomStatus").className="status-bar loading";const items=rows.map(r=>{const qty=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;return{pn:r[mapping.MfrPN]||"",qty:qty*sets,qtyPerSet:qty,sets};}).filter(i=>i.pn&&i.qty>0);const setsUsed=mapping.Sets&&items.some(i=>i.sets>1);try{const sheetRows=await sheetRead();const inv={};sheetRows.slice(1).forEach((r,i)=>{if(r[2])inv[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};});let html="";let allOk=true;bomPendingDispatch=[];items.forEach(({pn,qty,qtyPerSet,sets})=>{const key=pn.toUpperCase();const stock=inv[key];const setsLabel=sets>1?` (${qtyPerSet} &times; ${sets} sets)`:"";if(!stock){html+=`<div class="alert alert-error"><b>${pn}</b>: NOT IN INVENTORY</div>`;allOk=false;}else if(stock.qty<qty){html+=`<div class="alert alert-warn"><b>${pn}</b>: Need ${qty}${setsLabel}, have ${stock.qty} at ${stock.location||"?"}. Shortage: ${qty-stock.qty}</div>`;allOk=false;}else{html+=`<div class="alert alert-success"><b>${pn}</b>: OK \u2014 ${stock.qty} in stock. Need: ${qty}${setsLabel}</div>`;bomPendingDispatch.push({pn,qty,rowIdx:stock.rowIdx,currentQty:stock.qty});}});document.getElementById("bomResults").innerHTML=`<div class="card"><div class="card-title">Availability Results${setsUsed?' <span style="font-size:11px;color:var(--muted);font-weight:400">(quantities multiplied by sets)</span>':''}</div>${html}</div>`;if(bomPendingDispatch.length>0){document.getElementById("bomConfirmPanel").style.display="block";document.getElementById("bomConfirmSummary").innerHTML=`Ready to deduct stock for <b>${bomPendingDispatch.length}</b> available part(s):<br>${bomPendingDispatch.map(i=>`${i.pn} &times; ${i.qty}`).join("<br>")}`;document.getElementById("bomConfirmStatus").style.display="none";}document.getElementById("bomStatus").innerHTML=allOk?"\u2713 All parts available.":"\u26a0 Some parts unavailable or insufficient.";document.getElementById("bomStatus").className="status-bar "+(allOk?"ok":"warn");}catch(e){document.getElementById("bomStatus").innerHTML="Error: "+e.message;document.getElementById("bomStatus").className="status-bar err";}}
+}
+let _bomOriginalRows = [];
+let _bomOriginalHeaders = [];
+let _bomOriginalMapping = {};
+
+async function runBomCheck(mapping,rows){
+  document.getElementById("bomStatus").innerHTML='<span class="spinner"></span>Checking availability\u2026';
+  document.getElementById("bomStatus").className="status-bar loading";
+  document.getElementById("bomExportPanel").style.display="none";
+
+  // Store originals for export
+  _bomOriginalRows = rows;
+  _bomOriginalHeaders = rows.length ? Object.keys(rows[0]) : [];
+  _bomOriginalMapping = mapping;
+
+  const items=rows.map(r=>{const qty=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;return{pn:r[mapping.MfrPN]||"",qty:qty*sets,qtyPerSet:qty,sets,_row:r};}).filter(i=>i.pn&&i.qty>0);
+  const setsUsed=mapping.Sets&&items.some(i=>i.sets>1);
+  try{
+    const sheetRows=await sheetRead();
+    const inv={};
+    sheetRows.slice(1).forEach((r,i)=>{if(r[2])inv[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};});
+    let html="";let allOk=true;bomPendingDispatch=[];
+    items.forEach(({pn,qty,qtyPerSet,sets,_row})=>{
+      const key=pn.toUpperCase();const stock=inv[key];
+      const setsLabel=sets>1?` (${qtyPerSet} \u00d7 ${sets} sets)`:"";
+      if(!stock){
+        html+=`<div class="alert alert-error"><b>${pn}</b>: NOT IN INVENTORY</div>`;
+        allOk=false;
+        _row.__status="NOT IN INVENTORY";_row.__stock=0;_row.__needed=qty;_row.__shortage=qty;_row.__location="";
+      }else if(stock.qty<qty){
+        html+=`<div class="alert alert-warn"><b>${pn}</b>: Need ${qty}${setsLabel}, have ${stock.qty} at ${stock.location||"?"}. Shortage: ${qty-stock.qty}</div>`;
+        allOk=false;
+        _row.__status="NOT ENOUGH";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=qty-stock.qty;_row.__location=stock.location||"";
+      }else{
+        html+=`<div class="alert alert-success"><b>${pn}</b>: OK \u2014 ${stock.qty} in stock. Need: ${qty}${setsLabel}</div>`;
+        bomPendingDispatch.push({pn,qty,rowIdx:stock.rowIdx,currentQty:stock.qty});
+        _row.__status="IN STOCK";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=0;_row.__location=stock.location||"";
+      }
+    });
+    document.getElementById("bomResults").innerHTML=`<div class="card"><div class="card-title">Availability Results${setsUsed?' <span style="font-size:11px;color:var(--muted);font-weight:400">(quantities multiplied by sets)</span>':''}</div>${html}</div>`;
+    if(bomPendingDispatch.length>0){
+      document.getElementById("bomConfirmPanel").style.display="block";
+      document.getElementById("bomConfirmSummary").innerHTML=`Ready to deduct stock for <b>${bomPendingDispatch.length}</b> available part(s):<br>${bomPendingDispatch.map(i=>`${i.pn} \u00d7 ${i.qty}`).join("<br>")}`;
+      document.getElementById("bomConfirmStatus").style.display="none";
+    }
+    document.getElementById("bomExportPanel").style.display="block";
+    document.getElementById("bomStatus").innerHTML=allOk?"\u2713 All parts available.":"\u26a0 Some parts unavailable or insufficient.";
+    document.getElementById("bomStatus").className="status-bar "+(allOk?"ok":"warn");
+  }catch(e){
+    document.getElementById("bomStatus").innerHTML="Error: "+e.message;
+    document.getElementById("bomStatus").className="status-bar err";
+  }
+}
+
+function exportBomReport() {
+  if (!_bomOriginalRows.length) { toast("No results to export."); return; }
+  try {
+    const wb = XLSX.utils.book_new();
+    // Build export rows — original columns + 5 new status columns
+    const exportHeaders = [..._bomOriginalHeaders, "Stock Status", "Stock Available", "Qty Needed", "Shortage", "Location"];
+    const exportData = [exportHeaders];
+    _bomOriginalRows.forEach(row => {
+      const vals = _bomOriginalHeaders.map(h => row[h] || "");
+      // Add status columns (only for rows that were checked)
+      if (row.__status !== undefined) {
+        vals.push(row.__status, row.__stock, row.__needed, row.__shortage > 0 ? row.__shortage : "", row.__location);
+      } else {
+        vals.push("", "", "", "", "");
+      }
+      exportData.push(vals);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(exportData);
+    // Style the status column width
+    const statusColIdx = exportHeaders.indexOf("Stock Status");
+    if (!ws['!cols']) ws['!cols'] = [];
+    ws['!cols'][statusColIdx] = { wch: 18 };
+    XLSX.utils.book_append_sheet(wb, ws, "BOM Check");
+    XLSX.writeFile(wb, "BOM_Check_" + todayStr() + ".xlsx");
+    toast("Report downloaded.");
+  } catch(e) {
+    toast("Export failed: " + e.message);
+  }
+}
 async function confirmOrderDispatch(){const statusEl=document.getElementById("bomConfirmStatus");statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Deducting stock\u2026';statusEl.className="status-bar loading";const today=todayStr();try{for(const item of bomPendingDispatch){const newQty=item.currentQty-item.qty;await sheetUpdate(item.rowIdx,newQty,today);await sheetAppendTx([today,item.pn,"Order Check","Use",item.qty,item.currentQty,newQty,"Order dispatch"]);}statusEl.innerHTML=`\u2713 Stock deducted for ${bomPendingDispatch.length} parts.`;statusEl.className="status-bar ok";toast("Order dispatched.");bomPendingDispatch=[];document.getElementById("bomConfirmPanel").style.display="none";}catch(e){statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";}}
 function cancelOrderDispatch(){document.getElementById("bomConfirmPanel").style.display="none";bomPendingDispatch=[];}
 function downloadSampleCSV(){downloadFile("sample_order_bom.csv","text/csv","Part Number,Quantity,Description\nSN74LVC1G08DCKR,100,IC Gate AND\nGRM188R71H104KA93D,500,Cap 100nF 50V\n");}
