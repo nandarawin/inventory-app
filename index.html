@@ -484,6 +484,19 @@
  <div class="inv-drawer-body">
  <div id="drawerStockPill" class="stock-pill ok">&mdash; units</div>
  <div id="drawerInfoRows" style="margin-bottom:16px"></div>
+
+ <!-- Edit Location -->
+ <div class="drawer-action-section" style="margin-bottom:14px">
+   <div class="drawer-action-title">Location</div>
+   <div style="display:flex;gap:8px;align-items:center">
+     <select id="drawerLocationSelect" style="flex:1;font-family:var(--mono);font-size:12px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;outline:none;background:var(--surface);color:var(--text)">
+       <option value="">— not assigned —</option>
+     </select>
+     <button class="btn btn-primary btn-sm" onclick="saveDrawerLocation()">Save</button>
+   </div>
+   <div id="drawerLocationStatus" class="status-bar" style="margin-top:8px;display:none"></div>
+ </div>
+
  <div class="drawer-action-section">
  <div class="drawer-action-title">Update Stock</div>
  <div class="action-toggle">
@@ -1151,6 +1164,11 @@ function showPage(name, btn) {
 async function sheetRead() { const url=`${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}`; const resp=await fetch(url); return await resp.json(); }
 async function sheetAppend(row) { const url=`${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&row=${encodeURIComponent(JSON.stringify(row))}`; const resp=await fetch(url); return await resp.text(); }
 async function sheetUpdate(rowIndex,qty,date) { const url=`${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${rowIndex}&qty=${qty}&date=${encodeURIComponent(date)}`; const resp=await fetch(url); return await resp.text(); }
+async function sheetUpdateLocation(rowIndex, location) {
+  const url = `${APPS_SCRIPT_URL}?action=updateLocation&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${rowIndex}&location=${encodeURIComponent(location)}`;
+  const resp = await fetch(url);
+  return await resp.text();
+}
 async function sheetAppendTx(row) { const url=`${APPS_SCRIPT_URL}?action=append&sheet=Transactions&row=${encodeURIComponent(JSON.stringify(row))}`; await fetch(url); }
 
 // DASHBOARD 
@@ -1271,10 +1289,41 @@ function openDrawer(rowIdx,mfrPn,suppPn,supplier,desc,location,qty,lastUpdated) 
  document.getElementById("drawerInfoRows").innerHTML=[["Mfr PN",mfrPn||"\u2014"],["Supplier PN",suppPn||"\u2014"],["Supplier",supplier||"\u2014"],["Location",location||"\u2014"],["Updated",formatDate(lastUpdated)||"\u2014"]].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("");
  document.getElementById("drawerQty").value="1"; document.getElementById("drawerNotes").value="";
  const s=document.getElementById("drawerStatus"); s.style.display="none";
+ const ls=document.getElementById("drawerLocationStatus"); ls.style.display="none";
+ // Populate location dropdown
+ const locSel = document.getElementById("drawerLocationSelect");
+ locSel.innerHTML = '<option value="">— not assigned —</option>';
+ LOCATIONS.forEach(loc => {
+   const opt = document.createElement('option');
+   opt.value = loc.id;
+   opt.textContent = loc.id + (loc.name ? ' · ' + loc.name : '');
+   if (loc.id === location) opt.selected = true;
+   locSel.appendChild(opt);
+ });
+ // Allow typing a custom location too
  setDrawerAction("Receive");
  document.getElementById("drawerOverlay").classList.add("open");
  document.getElementById("invDrawer").classList.add("open");
  setTimeout(()=>document.getElementById("drawerQty").focus(),300);
+}
+
+async function saveDrawerLocation() {
+ if (!drawerRowData) return;
+ const newLocation = document.getElementById("drawerLocationSelect").value;
+ const statusEl = document.getElementById("drawerLocationStatus");
+ statusEl.style.display="block"; statusEl.innerHTML='<span class="spinner"></span>Saving\u2026'; statusEl.className="status-bar loading";
+ try {
+   await sheetUpdateLocation(drawerRowData.rowIdx, newLocation);
+   drawerRowData.location = newLocation;
+   // Update the info row display
+   document.getElementById("drawerInfoRows").innerHTML=[["Mfr PN",drawerRowData.mfrPn||"\u2014"],["Supplier PN",drawerRowData.suppPn||"\u2014"],["Supplier",drawerRowData.supplier||"\u2014"],["Location",newLocation||"\u2014"],["Updated",formatDate(drawerRowData.lastUpdated)||"\u2014"]].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("");
+   statusEl.innerHTML=`\u2713 Location saved: ${newLocation||"(none)"}`;statusEl.className="status-bar ok";
+   toast("Location updated: " + (newLocation||"cleared"));
+   _invCache = null;
+   renderInventory();
+ } catch(e) {
+   statusEl.innerHTML="Error: "+e.message; statusEl.className="status-bar err";
+ }
 }
 function closeDrawer() { document.getElementById("drawerOverlay").classList.remove("open"); document.getElementById("invDrawer").classList.remove("open"); document.getElementById("newPartDrawer").classList.remove("open"); drawerRowData=null; }
 function setDrawerAction(action) {
