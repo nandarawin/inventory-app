@@ -1272,8 +1272,29 @@ async function sheetRead() {
   const url=`${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}`;
   const resp=await fetch(url);
   const data=await resp.json();
-  // Normalize all cells to strings to prevent .trim()/.toUpperCase() errors
-  return data.map((row,i) => i===0 ? row : row.map(cell => cell===null||cell===undefined ? "" : String(cell)));
+  // Normalize all cells to strings
+  const normalized = data.map((row,i) => i===0 ? row : row.map(cell => cell===null||cell===undefined ? "" : String(cell)));
+  // Sync locSlots from sheet — parse location values like "PB01-03" to track used slots
+  syncLocSlotsFromSheet(normalized);
+  return normalized;
+}
+
+function syncLocSlotsFromSheet(rows) {
+  // Reset all slots first
+  LOCATIONS.forEach(l => { locSlots[l.id] = []; });
+  // Parse each row's location column (col index 5)
+  rows.slice(1).forEach(row => {
+    const loc = String(row[5]||"").trim();
+    if (!loc) return;
+    // Match slot label like PB01-03 or PB01-003
+    const m = loc.match(/^([A-Z0-9]+)-(\d+)$/i);
+    if (m) {
+      const locId = m[1].toUpperCase();
+      const slotNum = parseInt(m[2]);
+      if (!locSlots[locId]) locSlots[locId] = [];
+      if (!locSlots[locId].includes(slotNum)) locSlots[locId].push(slotNum);
+    }
+  });
 }
 async function sheetAppend(row) { const url=`${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&row=${encodeURIComponent(JSON.stringify(row))}`; const resp=await fetch(url); return await resp.text(); }
 async function sheetUpdate(rowIndex,qty,date) { const url=`${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${rowIndex}&qty=${qty}&date=${encodeURIComponent(date)}`; const resp=await fetch(url); return await resp.text(); }
