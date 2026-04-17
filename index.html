@@ -216,6 +216,7 @@
  .slot-preview-value { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--accent); }
  .add-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
  </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -321,7 +322,7 @@
  <div class="card">
  <div class="card-title">Order Check &mdash; Stock Availability</div>
  <div class="config-note">Upload a customer order BOM to check if parts are in stock. The app auto-detects columns &mdash; no need to rename anything. Only <b>Part Number</b> and <b>Quantity</b> are required.</div>
- <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Order BOM CSV</label><input type="file" id="csvFile" accept=".csv" style="padding:6px" /></div>
+ <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Order BOM (CSV or Excel)</label><input type="file" id="csvFile" accept=".csv,.xlsx,.xls" style="padding:6px" /></div>
  <div class="btn-row">
  <button class="btn btn-primary" onclick="processCSV()">Check Availability</button>
  <button class="btn btn-secondary" onclick="downloadSampleCSV()">Download Sample CSV</button>
@@ -414,7 +415,7 @@
  <div class="card">
  <div class="card-title">Bulk Receive &mdash; Add New Stock from CSV</div>
  <div class="config-note">Upload a CSV file with new stock to add. The app auto-detects columns. <b>Part Number</b> and <b>Quantity</b> are required. New parts get auto-assigned locations (PB01, PB02&hellip; 50 items per box).</div>
- <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Stock CSV</label><input type="file" id="bulkCsvFile" accept=".csv" style="padding:6px" /></div>
+ <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Stock CSV or Excel</label><input type="file" id="bulkCsvFile" accept=".csv,.xlsx,.xls" style="padding:6px" /></div>
  <div class="btn-row">
  <button class="btn btn-primary" onclick="processBulkReceive()">Preview Stock</button>
  <button class="btn btn-secondary" onclick="downloadBulkSampleCSV()">Download Sample CSV</button>
@@ -669,17 +670,17 @@
 
 <!-- COLUMN MAPPING MODAL -->
 <div id="colMapModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center;padding:16px">
- <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
- <div style="padding:24px 28px 0">
- <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px" id="colMapTitle">Confirm Column Mapping</div>
- <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">Check each column match before processing.</div>
- <div id="colMapPreviewRow" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:12px;font-family:var(--mono);color:var(--muted);overflow-x:auto;white-space:nowrap"></div>
- </div>
- <div id="colMapFields" style="padding:0 28px 8px;display:flex;flex-direction:column;gap:12px"></div>
- <div style="padding:20px 28px;border-top:1px solid var(--border);display:flex;gap:10px">
- <button class="btn btn-primary" style="flex:1" onclick="confirmColMapping()">Confirm &amp; Continue</button>
- <button class="btn btn-secondary" onclick="cancelColMapping()">Cancel</button>
- </div>
+ <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+  <div style="padding:24px 28px 0;flex-shrink:0">
+   <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px" id="colMapTitle">Confirm Column Mapping</div>
+   <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5">Check each column match before processing.</div>
+   <div id="colMapPreviewRow" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;font-family:var(--mono);color:var(--muted);overflow-x:auto;white-space:nowrap"></div>
+  </div>
+  <div id="colMapFields" style="padding:0 28px 12px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1;min-height:0"></div>
+  <div style="padding:16px 28px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0">
+   <button class="btn btn-primary" style="flex:1" onclick="confirmColMapping()">Confirm &amp; Continue</button>
+   <button class="btn btn-secondary" onclick="cancelColMapping()">Cancel</button>
+  </div>
  </div>
 </div>
 
@@ -1466,8 +1467,71 @@ function downloadFile(name,type,content){const a=document.createElement("a");a.h
 
 // BOM 
 let bomPendingDispatch=[];
-function processCSV(){const file=document.getElementById("csvFile").files[0];if(!file){document.getElementById("bomStatus").innerHTML="Please select a CSV file.";document.getElementById("bomStatus").className="status-bar err";return;}const reader=new FileReader();reader.onload=(e)=>{document.getElementById("bomStatus").innerHTML='<span class="spinner"></span>Parsing CSV\u2026';document.getElementById("bomStatus").className="status-bar loading";const{headers,rows}=parseCSVToObjects(e.target.result);if(!headers.length||!rows.length){document.getElementById("bomStatus").innerHTML="CSV must have header + data rows.";document.getElementById("bomStatus").className="status-bar err";return;}const initialMapping=autoDetectColumns(headers);showColMapModal(headers,rows,"bom",initialMapping,runBomCheck);document.getElementById("bomStatus").innerHTML="Confirm column mapping to continue.";document.getElementById("bomStatus").className="status-bar";};reader.readAsText(file);}
-async function runBomCheck(mapping,rows){document.getElementById("bomStatus").innerHTML='<span class="spinner"></span>Checking availability\u2026';document.getElementById("bomStatus").className="status-bar loading";const items=rows.map(r=>({pn:r[mapping.MfrPN]||"",qty:parseInt(r[mapping.Quantity])||0})).filter(i=>i.pn&&i.qty>0);try{const sheetRows=await sheetRead();const inv={};sheetRows.slice(1).forEach((r,i)=>{if(r[2])inv[(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};});let html="";let allOk=true;bomPendingDispatch=[];items.forEach(({pn,qty})=>{const key=pn.toUpperCase();const stock=inv[key];if(!stock){html+=`<div class="alert alert-error"><b>${pn}</b>: NOT IN INVENTORY</div>`;allOk=false;}else if(stock.qty<qty){html+=`<div class="alert alert-warn"><b>${pn}</b>: Need ${qty}, have ${stock.qty} at ${stock.location||"?"}. Shortage: ${qty-stock.qty}</div>`;allOk=false;}else{html+=`<div class="alert alert-success"><b>${pn}</b>: OK \u2014 ${stock.qty} in stock at ${stock.location||"?"}. Need: ${qty}</div>`;bomPendingDispatch.push({pn,qty,rowIdx:stock.rowIdx,currentQty:stock.qty});}});document.getElementById("bomResults").innerHTML=`<div class="card"><div class="card-title">Availability Results</div>${html}</div>`;if(bomPendingDispatch.length>0){document.getElementById("bomConfirmPanel").style.display="block";document.getElementById("bomConfirmSummary").innerHTML=`Ready to deduct stock for <b>${bomPendingDispatch.length}</b> available part(s):<br>${bomPendingDispatch.map(i=>`${i.pn} &times; ${i.qty}`).join("<br>")}`;document.getElementById("bomConfirmStatus").style.display="none";}document.getElementById("bomStatus").innerHTML=allOk?"\u2713 All parts available.":"\u26a0 Some parts unavailable or insufficient.";document.getElementById("bomStatus").className="status-bar "+(allOk?"ok":"warn");}catch(e){document.getElementById("bomStatus").innerHTML="Error: "+e.message;document.getElementById("bomStatus").className="status-bar err";}}
+// Shared helper — reads CSV or Excel file, returns {headers, rows}
+function readSpreadsheetFile(file) {
+  return new Promise((resolve, reject) => {
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+    const reader = new FileReader();
+    if (isExcel) {
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          if (!jsonData.length) { reject(new Error('Excel file is empty.')); return; }
+          const headers = jsonData[0].map(h => String(h).trim());
+          const rows = jsonData.slice(1)
+            .filter(r => r.some(c => String(c).trim()))
+            .map(r => {
+              const obj = {};
+              headers.forEach((h, i) => obj[h] = String(r[i] ?? '').trim());
+              return obj;
+            });
+          resolve({ headers, rows });
+        } catch(e) { reject(new Error('Could not read Excel file: ' + e.message)); }
+      };
+      reader.onerror = () => reject(new Error('File read error.'));
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = (e) => {
+        try {
+          const result = parseCSVToObjects(e.target.result);
+          if (!result.headers.length) { reject(new Error('CSV appears empty or invalid.')); return; }
+          resolve(result);
+        } catch(e) { reject(new Error('Could not parse CSV: ' + e.message)); }
+      };
+      reader.onerror = () => reject(new Error('File read error.'));
+      reader.readAsText(file);
+    }
+  });
+}
+
+function processCSV() {
+  const file = document.getElementById("csvFile").files[0];
+  const statusEl = document.getElementById("bomStatus");
+  if (!file) { statusEl.innerHTML = "Please select a CSV or Excel file."; statusEl.className = "status-bar err"; return; }
+  statusEl.innerHTML = '<span class="spinner"></span>Reading file\u2026'; statusEl.className = "status-bar loading";
+  readSpreadsheetFile(file).then(({ headers, rows }) => {
+    if (!rows.length) { statusEl.innerHTML = "File must have header + data rows."; statusEl.className = "status-bar err"; return; }
+    const initialMapping = autoDetectColumns(headers);
+    showColMapModal(headers, rows, "bom", initialMapping, runBomCheck);
+    statusEl.innerHTML = "Confirm column mapping to continue."; statusEl.className = "status-bar";
+  }).catch(e => { statusEl.innerHTML = "Error: " + e.message; statusEl.className = "status-bar err"; });
+}
+
+function processBulkReceive() {
+  const file = document.getElementById("bulkCsvFile").files[0];
+  const statusEl = document.getElementById("bulkStatus");
+  if (!file) { statusEl.innerHTML = "Please select a CSV or Excel file."; statusEl.className = "status-bar err"; return; }
+  statusEl.innerHTML = '<span class="spinner"></span>Reading file\u2026'; statusEl.className = "status-bar loading";
+  readSpreadsheetFile(file).then(({ headers, rows }) => {
+    if (!rows.length) { statusEl.innerHTML = "File must have header + data rows."; statusEl.className = "status-bar err"; return; }
+    const initialMapping = autoDetectColumns(headers);
+    showColMapModal(headers, rows, "bulk", initialMapping, runBulkPreview);
+    statusEl.innerHTML = "Confirm column mapping to continue."; statusEl.className = "status-bar";
+  }).catch(e => { statusEl.innerHTML = "Error: " + e.message; statusEl.className = "status-bar err"; });
+}async function runBomCheck(mapping,rows){document.getElementById("bomStatus").innerHTML='<span class="spinner"></span>Checking availability\u2026';document.getElementById("bomStatus").className="status-bar loading";const items=rows.map(r=>({pn:r[mapping.MfrPN]||"",qty:parseInt(r[mapping.Quantity])||0})).filter(i=>i.pn&&i.qty>0);try{const sheetRows=await sheetRead();const inv={};sheetRows.slice(1).forEach((r,i)=>{if(r[2])inv[(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};});let html="";let allOk=true;bomPendingDispatch=[];items.forEach(({pn,qty})=>{const key=pn.toUpperCase();const stock=inv[key];if(!stock){html+=`<div class="alert alert-error"><b>${pn}</b>: NOT IN INVENTORY</div>`;allOk=false;}else if(stock.qty<qty){html+=`<div class="alert alert-warn"><b>${pn}</b>: Need ${qty}, have ${stock.qty} at ${stock.location||"?"}. Shortage: ${qty-stock.qty}</div>`;allOk=false;}else{html+=`<div class="alert alert-success"><b>${pn}</b>: OK \u2014 ${stock.qty} in stock at ${stock.location||"?"}. Need: ${qty}</div>`;bomPendingDispatch.push({pn,qty,rowIdx:stock.rowIdx,currentQty:stock.qty});}});document.getElementById("bomResults").innerHTML=`<div class="card"><div class="card-title">Availability Results</div>${html}</div>`;if(bomPendingDispatch.length>0){document.getElementById("bomConfirmPanel").style.display="block";document.getElementById("bomConfirmSummary").innerHTML=`Ready to deduct stock for <b>${bomPendingDispatch.length}</b> available part(s):<br>${bomPendingDispatch.map(i=>`${i.pn} &times; ${i.qty}`).join("<br>")}`;document.getElementById("bomConfirmStatus").style.display="none";}document.getElementById("bomStatus").innerHTML=allOk?"\u2713 All parts available.":"\u26a0 Some parts unavailable or insufficient.";document.getElementById("bomStatus").className="status-bar "+(allOk?"ok":"warn");}catch(e){document.getElementById("bomStatus").innerHTML="Error: "+e.message;document.getElementById("bomStatus").className="status-bar err";}}
 async function confirmOrderDispatch(){const statusEl=document.getElementById("bomConfirmStatus");statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Deducting stock\u2026';statusEl.className="status-bar loading";const today=todayStr();try{for(const item of bomPendingDispatch){const newQty=item.currentQty-item.qty;await sheetUpdate(item.rowIdx,newQty,today);await sheetAppendTx([today,item.pn,"Order Check","Use",item.qty,item.currentQty,newQty,"Order dispatch"]);}statusEl.innerHTML=`\u2713 Stock deducted for ${bomPendingDispatch.length} parts.`;statusEl.className="status-bar ok";toast("Order dispatched.");bomPendingDispatch=[];document.getElementById("bomConfirmPanel").style.display="none";}catch(e){statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";}}
 function cancelOrderDispatch(){document.getElementById("bomConfirmPanel").style.display="none";bomPendingDispatch=[];}
 function downloadSampleCSV(){downloadFile("sample_order_bom.csv","text/csv","Part Number,Quantity,Description\nSN74LVC1G08DCKR,100,IC Gate AND\nGRM188R71H104KA93D,500,Cap 100nF 50V\n");}
@@ -1479,7 +1543,7 @@ async function autoAssignLocation(){
  try{const rows=await sheetRead();for(let i=1;i<=72;i++){const loc="PB"+String(i).padStart(2,"0");const count=rows.slice(1).filter(r=>(r[5]||"").trim().toUpperCase()===loc.toUpperCase()).length;if(count<50)return loc;}return"PB01";}
  catch(e){return"PB01";}
 }
-function processBulkReceive(){const file=document.getElementById("bulkCsvFile").files[0];if(!file){document.getElementById("bulkStatus").innerHTML="Please select a CSV file.";document.getElementById("bulkStatus").className="status-bar err";return;}const reader=new FileReader();reader.onload=(e)=>{document.getElementById("bulkStatus").innerHTML='<span class="spinner"></span>Parsing CSV\u2026';document.getElementById("bulkStatus").className="status-bar loading";const{headers,rows}=parseCSVToObjects(e.target.result);if(!headers.length||!rows.length){document.getElementById("bulkStatus").innerHTML="CSV must have header + data rows.";document.getElementById("bulkStatus").className="status-bar err";return;}const initialMapping=autoDetectColumns(headers);showColMapModal(headers,rows,"bulk",initialMapping,runBulkPreview);document.getElementById("bulkStatus").innerHTML="Confirm column mapping to continue.";document.getElementById("bulkStatus").className="status-bar";};reader.readAsText(file);}
+
 async function runBulkPreview(mapping,rows){document.getElementById("bulkStatus").innerHTML='<span class="spinner"></span>Previewing\u2026';document.getElementById("bulkStatus").className="status-bar loading";const items=rows.map(r=>({mfrPn:r[mapping.MfrPN]||"",qty:parseInt(r[mapping.Quantity])||0,desc:mapping.Description?r[mapping.Description]||"":"",supplier:mapping.Supplier?r[mapping.Supplier]||"":"",supplierPn:mapping.SupplierPN?r[mapping.SupplierPN]||"":"",location:mapping.Location?r[mapping.Location]||"":""})).filter(i=>i.mfrPn&&i.qty>0);try{const sheetRows=await sheetRead();const existing={};sheetRows.slice(1).forEach((r,i)=>{if(r[2])existing[(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0};});bulkPendingItems=[];let html="";for(const item of items){const key=item.mfrPn.toUpperCase();if(existing[key]){html+=`<div class="alert alert-info"><b>${item.mfrPn}</b>: Exists \u2014 will add ${item.qty} (current: ${existing[key].qty})</div>`;bulkPendingItems.push({...item,isNew:false,rowIdx:existing[key].rowIdx,currentQty:existing[key].qty});}else{const loc=item.location||(await autoAssignLocation());html+=`<div class="alert alert-success"><b>${item.mfrPn}</b>: NEW \u2014 will add ${item.qty} at ${loc}</div>`;bulkPendingItems.push({...item,isNew:true,finalLocation:loc});}}document.getElementById("bulkResults").innerHTML=`<div class="card"><div class="card-title">Preview</div>${html}</div>`;document.getElementById("bulkConfirmPanel").style.display="block";document.getElementById("bulkConfirmSummary").innerHTML=`${bulkPendingItems.length} parts ready: ${bulkPendingItems.filter(i=>i.isNew).length} new, ${bulkPendingItems.filter(i=>!i.isNew).length} existing.`;document.getElementById("bulkConfirmStatus").style.display="none";document.getElementById("bulkStatus").innerHTML=`\u2713 ${bulkPendingItems.length} parts parsed.`;document.getElementById("bulkStatus").className="status-bar ok";}catch(e){document.getElementById("bulkStatus").innerHTML="Error: "+e.message;document.getElementById("bulkStatus").className="status-bar err";}}
 async function confirmBulkReceive(){const statusEl=document.getElementById("bulkConfirmStatus");statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Processing\u2026';statusEl.className="status-bar loading";const today=todayStr();let done=0;try{for(const item of bulkPendingItems){if(item.isNew){const row=[item.supplierPn,item.supplier,item.mfrPn,item.desc,item.qty,item.finalLocation,today];await sheetAppend(row);await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,0,item.qty,"Bulk receive"]);}else{const newQty=item.currentQty+item.qty;await sheetUpdate(item.rowIdx,newQty,today);await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,item.currentQty,newQty,"Bulk receive"]);}done++;}statusEl.innerHTML=`\u2713 Done. ${done} parts updated.`;statusEl.className="status-bar ok";toast(`Bulk receive: ${done} parts added.`);bulkPendingItems=[];document.getElementById("bulkConfirmPanel").style.display="none";}catch(e){statusEl.innerHTML="Error at part "+(done+1)+": "+e.message;statusEl.className="status-bar err";}}
 function cancelBulkReceive(){document.getElementById("bulkConfirmPanel").style.display="none";bulkPendingItems=[];}
