@@ -1686,6 +1686,7 @@ async function runBomCheck(mapping,rows){
   document.getElementById("bomStatus").innerHTML='<span class="spinner"></span>Checking availability\u2026';
   document.getElementById("bomStatus").className="status-bar loading";
   document.getElementById("bomExportPanel").style.display="none";
+  document.getElementById("bomResults").innerHTML="";
 
   // Store originals for export
   _bomOriginalRows = rows;
@@ -1698,32 +1699,56 @@ async function runBomCheck(mapping,rows){
     const sheetRows=await sheetRead();
     const inv={};
     sheetRows.slice(1).forEach((r,i)=>{if(r[2])inv[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};});
-    let html="";let allOk=true;bomPendingDispatch=[];
+    let totalParts=0, inStock=0, notEnough=0, notFound=0;
+    bomPendingDispatch=[];
+
     items.forEach(({pn,qty,qtyPerSet,sets,_row})=>{
-      const key=pn.toUpperCase();const stock=inv[key];
-      const setsLabel=sets>1?` (${qtyPerSet} \u00d7 ${sets} sets)`:"";
+      totalParts++;
+      const key=pn.toUpperCase(); const stock=inv[key];
       if(!stock){
-        html+=`<div class="alert alert-error"><b>${pn}</b>: NOT IN INVENTORY</div>`;
-        allOk=false;
+        notFound++;
         _row.__status="NOT IN INVENTORY";_row.__stock=0;_row.__needed=qty;_row.__shortage=qty;_row.__location="";
       }else if(stock.qty<qty){
-        html+=`<div class="alert alert-warn"><b>${pn}</b>: Need ${qty}${setsLabel}, have ${stock.qty} at ${stock.location||"?"}. Shortage: ${qty-stock.qty}</div>`;
-        allOk=false;
+        notEnough++;
         _row.__status="NOT ENOUGH";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=qty-stock.qty;_row.__location=stock.location||"";
       }else{
-        html+=`<div class="alert alert-success"><b>${pn}</b>: OK \u2014 ${stock.qty} in stock. Need: ${qty}${setsLabel}</div>`;
+        inStock++;
         bomPendingDispatch.push({pn,qty,rowIdx:stock.rowIdx,currentQty:stock.qty});
         _row.__status="IN STOCK";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=0;_row.__location=stock.location||"";
       }
     });
-    document.getElementById("bomResults").innerHTML=`<div class="card"><div class="card-title">Availability Results${setsUsed?' <span style="font-size:11px;color:var(--muted);font-weight:400">(quantities multiplied by sets)</span>':''}</div>${html}</div>`;
+
+    const allOk = notFound===0 && notEnough===0;
+
+    // Show compact summary only
+    document.getElementById("bomResults").innerHTML=`<div class="card">
+      <div class="card-title">Check Complete${setsUsed?' <span style="font-size:11px;color:var(--muted);font-weight:400">(qty \u00d7 sets)</span>':''}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px">
+        <div style="background:var(--success-bg);border:1px solid var(--success-border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:var(--mono);font-size:24px;font-weight:600;color:var(--success)">${inStock}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:0.5px">In Stock</div>
+        </div>
+        <div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:var(--mono);font-size:24px;font-weight:600;color:var(--warn)">${notEnough}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--warn);text-transform:uppercase;letter-spacing:0.5px">Not Enough</div>
+        </div>
+        <div style="background:var(--error-bg);border:1px solid var(--error-border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:var(--mono);font-size:24px;font-weight:600;color:var(--error)">${notFound}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--error);text-transform:uppercase;letter-spacing:0.5px">Not Found</div>
+        </div>
+      </div>
+    </div>`;
+
     if(bomPendingDispatch.length>0){
       document.getElementById("bomConfirmPanel").style.display="block";
-      document.getElementById("bomConfirmSummary").innerHTML=`Ready to deduct stock for <b>${bomPendingDispatch.length}</b> available part(s):<br>${bomPendingDispatch.map(i=>`${i.pn} \u00d7 ${i.qty}`).join("<br>")}`;
+      document.getElementById("bomConfirmSummary").innerHTML=`<b>${bomPendingDispatch.length}</b> part(s) can be deducted from stock:<br><span style="font-family:var(--mono);font-size:12px">${bomPendingDispatch.map(i=>`${i.pn} \u00d7 ${i.qty}`).join("<br>")}</span>`;
       document.getElementById("bomConfirmStatus").style.display="none";
+    } else {
+      document.getElementById("bomConfirmPanel").style.display="none";
     }
+
     document.getElementById("bomExportPanel").style.display="block";
-    document.getElementById("bomStatus").innerHTML=allOk?"\u2713 All parts available.":"\u26a0 Some parts unavailable or insufficient.";
+    document.getElementById("bomStatus").innerHTML=allOk?`\u2713 All ${totalParts} parts available.`:`\u26a0 ${totalParts} parts checked \u2014 download report for full details.`;
     document.getElementById("bomStatus").className="status-bar "+(allOk?"ok":"warn");
   }catch(e){
     document.getElementById("bomStatus").innerHTML="Error: "+e.message;
