@@ -287,7 +287,7 @@
   <div id="page-bom" class="page">
     <div class="card">
       <div class="card-title">Order Check &mdash; Stock Availability</div>
-     
+      <div class="config-note">Upload a customer order BOM to check stock. Match priority: <b>1) Part Number</b> &rarr; <b>2) NexwahPN</b> &rarr; <b>3) Value</b> &rarr; <b>4) Footprint</b>. Only <b>Part Number</b> and <b>Quantity</b> are required.</div>
       <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Order BOM (CSV or Excel)</label><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,.xlsm" style="padding:6px" /></div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="processCSV()">&#128269; Check Availability</button>
@@ -358,7 +358,7 @@
   <div id="page-bulkreceive" class="page">
     <div class="card">
       <div class="card-title">Bulk Receive &mdash; Add New Stock from CSV</div>
-      
+      <div class="config-note">Upload a CSV file with new stock to add. The app auto-detects columns. <b>Part Number</b> and <b>Quantity</b> are required. New parts get auto-assigned locations (PB01, PB02&hellip; 50 items per box).</div>
       <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Stock (CSV or Excel)</label><input type="file" id="bulkCsvFile" accept=".csv,.xlsx,.xls,.xlsm" style="padding:6px" /></div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="processBulkReceive()">Preview Stock</button>
