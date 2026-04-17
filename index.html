@@ -321,7 +321,6 @@
  <div id="page-bom" class="page">
  <div class="card">
  <div class="card-title">Order Check &mdash; Stock Availability</div>
- <div class="config-note">Upload a customer order BOM to check if parts are in stock. The app auto-detects columns &mdash; no need to rename anything. Only <b>Part Number</b> and <b>Quantity</b> are required.</div>
  <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Order BOM (CSV or Excel)</label><input type="file" id="csvFile" accept=".csv,.xlsx,.xls" style="padding:6px" /></div>
  <div class="btn-row">
  <button class="btn btn-primary" onclick="processCSV()">Check Availability</button>
@@ -376,9 +375,11 @@
  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
  <div>
  <div style="font-size:16px;font-weight:700;color:var(--text)">Location Manager</div>
- <div style="font-size:12px;color:var(--muted);margin-top:2px">Each box holds 100 slots. Click a location to view slots, or add a component below.</div>
  </div>
- <button class="btn btn-primary" onclick="openAddComponentModal()">+ Add Component to Location</button>
+ <div style="display:flex;gap:8px;flex-wrap:wrap">
+   <button class="btn btn-secondary" onclick="openNewBoxModal()">+ New PB Box</button>
+   <button class="btn btn-primary" onclick="openAddComponentModal()">+ Add Component to Location</button>
+ </div>
  </div>
  <div class="loc-controls">
  <div class="loc-search-wrap">
@@ -388,7 +389,6 @@
  <button class="loc-filter-btn active" onclick="setLocFilter('all',this)">All</button>
  <button class="loc-filter-btn" onclick="setLocFilter('PB',this)">PB Bins</button>
  </div>
- <div style="font-size:12px;color:var(--muted)">Showing <b id="locCount">—</b> locations &nbsp;·&nbsp; <span style="color:var(--success)"></span> Available &nbsp;<span style="color:#d97706"></span> 80%+ Full &nbsp;<span style="color:var(--error)"></span> Full</div>
  </div>
  <div class="loc-grid" id="locGrid"></div>
  </div>
@@ -414,7 +414,6 @@
  <div id="page-bulkreceive" class="page">
  <div class="card">
  <div class="card-title">Bulk Receive &mdash; Add New Stock from CSV</div>
- <div class="config-note">Upload a CSV file with new stock to add. The app auto-detects columns. <b>Part Number</b> and <b>Quantity</b> are required. New parts get auto-assigned locations (PB01, PB02&hellip; 50 items per box).</div>
  <div class="field" style="max-width:400px;margin-bottom:14px"><label>Upload Stock CSV or Excel</label><input type="file" id="bulkCsvFile" accept=".csv,.xlsx,.xls" style="padding:6px" /></div>
  <div class="btn-row">
  <button class="btn btn-primary" onclick="processBulkReceive()">Preview Stock</button>
@@ -454,7 +453,6 @@
  <div class="card-title">Settings</div>
  <div style="margin-bottom:24px">
  <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Anthropic API Key (Claude Vision)</div>
- <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Required for AI label scanning. Get your key at <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--accent)">console.anthropic.com/keys</a></div>
  <div id="apiKeyStatus" style="margin-bottom:12px"></div>
  <div class="field" style="max-width:500px"><label>API Key</label><input type="password" id="settingsApiKey" placeholder="sk-ant-api03-..." style="font-family:var(--mono);font-size:13px" /></div>
  <div class="btn-row">
@@ -546,6 +544,41 @@
  </div>
  <button class="btn btn-primary" style="width:100%;margin-top:20px" onclick="submitNewPart()">+ Add to Inventory</button>
  <div id="newPartStatus" class="status-bar" style="margin-top:10px;display:none"></div>
+ </div>
+</div>
+
+<!-- NEW PB BOX MODAL -->
+<div class="loc-modal-overlay" id="newBoxOverlay">
+ <div class="loc-modal" style="max-width:400px">
+  <div class="loc-modal-header">
+   <div>
+    <div class="loc-modal-title">Add New PB Box</div>
+    <div class="loc-modal-subtitle">Creates a new storage location</div>
+   </div>
+   <button class="loc-modal-close" onclick="closeNewBoxModal()">&#x2715;</button>
+  </div>
+  <div class="loc-modal-body">
+   <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="field">
+     <label>Box ID</label>
+     <input type="text" id="newBoxId" placeholder="e.g. PB73" style="font-family:var(--mono);font-weight:600;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" />
+     <div style="font-size:11px;color:var(--muted);margin-top:3px">Next available: <b id="newBoxSuggest">—</b></div>
+    </div>
+    <div class="field">
+     <label>Description / Component Type</label>
+     <input type="text" id="newBoxName" placeholder="e.g. DIODE SOD123" />
+    </div>
+    <div class="field">
+     <label>Capacity (slots)</label>
+     <input type="number" id="newBoxCapacity" value="100" min="1" style="font-family:var(--mono)" />
+    </div>
+   </div>
+   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+    <button class="btn btn-secondary" onclick="closeNewBoxModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="confirmNewBox()">Create Box</button>
+   </div>
+   <div id="newBoxStatus" class="status-bar" style="margin-top:10px;display:none"></div>
+  </div>
  </div>
 </div>
 
@@ -874,6 +907,50 @@ function populateAllLocationDropdowns() {
 }
 
 // LOCATION PAGE 
+// ── NEW PB BOX ─────────────────────────────────────────────
+function getNextBoxId() {
+  const existingNums = LOCATIONS
+    .map(l => { const m = l.id.match(/^PB(\d+)$/); return m ? parseInt(m[1]) : -1; })
+    .filter(n => n >= 0);
+  const max = existingNums.length ? Math.max(...existingNums) : -1;
+  return 'PB' + String(max + 1).padStart(2, '0');
+}
+
+function openNewBoxModal() {
+  const suggested = getNextBoxId();
+  document.getElementById('newBoxId').value = suggested;
+  document.getElementById('newBoxSuggest').textContent = suggested;
+  document.getElementById('newBoxName').value = '';
+  document.getElementById('newBoxCapacity').value = '100';
+  document.getElementById('newBoxStatus').style.display = 'none';
+  document.getElementById('newBoxOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('newBoxName').focus(), 100);
+}
+
+function closeNewBoxModal() {
+  document.getElementById('newBoxOverlay').classList.remove('open');
+}
+
+function confirmNewBox() {
+  const id = document.getElementById('newBoxId').value.trim().toUpperCase();
+  const name = document.getElementById('newBoxName').value.trim();
+  const cap = parseInt(document.getElementById('newBoxCapacity').value) || 100;
+  const statusEl = document.getElementById('newBoxStatus');
+
+  if (!id) { statusEl.style.display='block'; statusEl.innerHTML='Enter a Box ID.'; statusEl.className='status-bar err'; return; }
+  if (LOCATIONS.find(l => l.id === id)) { statusEl.style.display='block'; statusEl.innerHTML=`"${id}" already exists.`; statusEl.className='status-bar err'; return; }
+
+  // Add to LOCATIONS array
+  LOCATIONS.push({ id, name, type: 'PB' });
+  locSlots[id] = [];
+  locCapacity[id] = cap;
+
+  populateAllLocationDropdowns();
+  renderLocations();
+  toast(`Created: ${id}${name ? ' · ' + name : ''}`);
+  closeNewBoxModal();
+}
+
 function renderLocations() {
  const search = (document.getElementById('locSearch')?.value || '').toLowerCase();
  const grid = document.getElementById('locGrid');
@@ -976,6 +1053,7 @@ function closeLocDetail() {
 document.addEventListener('DOMContentLoaded', () => {
  document.getElementById('locDetailOverlay').addEventListener('click', e => { if (e.target.id === 'locDetailOverlay') closeLocDetail(); });
  document.getElementById('addCompOverlay').addEventListener('click', e => { if (e.target.id === 'addCompOverlay') closeAddComponentModal(); });
+ document.getElementById('newBoxOverlay').addEventListener('click', e => { if (e.target.id === 'newBoxOverlay') closeNewBoxModal(); });
 });
 
 // ADD COMPONENT MODAL 
