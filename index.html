@@ -395,6 +395,7 @@
  <button class="btn btn-primary btn-sm" onclick="openNewPartDrawer()">+ Add New Part</button>
  <button class="btn btn-secondary btn-sm" onclick="exportInventoryCSV()">Export CSV</button>
  <button class="btn btn-danger btn-sm" onclick="confirmClear()">Clear All Data</button>
+          <button class="btn btn-secondary btn-sm" onclick="migrateLocationFormat()">Fix Location Format</button>
  </div>
  </div>
  <div class="search-bar" style="margin-bottom:0">
@@ -2156,6 +2157,28 @@ function downloadBulkSampleCSV(){downloadFile("sample_bulk_receive.csv","text/cs
 
 // MISC 
 async function confirmClear(){if(!confirm("This will delete ALL inventory and transaction data from Google Sheets. Are you sure?"))return;if(!confirm("SECOND CONFIRMATION: This cannot be undone. Proceed?"))return;toast("Clear not implemented — manage data in Google Sheets directly for safety.");}
+
+async function migrateLocationFormat() {
+  if(!confirm("This will remove leading zeros from all location values in your sheet (e.g. PB00-01 → PB0-1, PB01-03 → PB1-3). Continue?")) return;
+  try {
+    const rows = await sheetRead();
+    let count = 0;
+    for(let i=1; i<rows.length; i++) {
+      const loc = String(rows[i][5]||"").trim();
+      if(!loc) continue;
+      // Remove leading zeros: PB00-01 → PB0-1, PB01-03 → PB1-3
+      const fixed = loc.replace(/^([A-Za-z]+)0*(\d+)-0*(\d+)$/, (_, prefix, box, slot) => `${prefix}${parseInt(box)}-${parseInt(slot)}`);
+      if(fixed !== loc) {
+        const url = `${APPS_SCRIPT_URL}?action=updateLocation&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${i+1}&location=${encodeURIComponent(fixed)}`;
+        await fetch(url);
+        count++;
+      }
+    }
+    _invCache = null;
+    toast(`Updated ${count} location(s).`);
+    renderInventory();
+  } catch(e) { toast("Migration failed: " + e.message); }
+}
 function todayStr(){return new Date().toISOString().split("T")[0];}
 function formatDate(d){if(!d)return"";try{const dt=new Date(d);if(isNaN(dt))return d;return dt.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;}}
 function setCamStatus(msg,type){const el=document.getElementById("camStatus");el.innerHTML=msg;el.className="status-bar"+(type?" "+type:"");}
