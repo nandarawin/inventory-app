@@ -1439,6 +1439,7 @@ function _renderInvRows(tbody) {
         <button class="btn btn-success btn-sm" onclick="quickUpdate(${origIdx},'${mfrPn}','${supplier}',${qty},'Receive')">+</button>
         <button class="btn btn-danger btn-sm" onclick="quickUpdate(${origIdx},'${mfrPn}','${supplier}',${qty},'Use')">\u2212</button>
         <button class="btn btn-secondary btn-sm" onclick="printLabel('${mfrPn}','${suppPn}','${desc}','${loc}','${qty}')">Print</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteInventoryRow(${origIdx},'${mfrPn}')">Remove</button>
       </div></td>
     </tr>`;
   }).join("");
@@ -1450,11 +1451,22 @@ async function quickUpdate(rowIdx,mfrPn,supplier,currentQty,action) {
  try {
    await sheetUpdate(rowIdx,newQty,today);
    await sheetAppendTx([today,mfrPn,supplier,action,1,currentQty,newQty,"Quick update"]);
-   _invCache = null; // force fresh load
+   _invCache = null;
    toast(`${mfrPn}: ${currentQty} \u2192 ${newQty}`);
    renderInventory();
  }
  catch(e) { toast("Update failed: "+e.message); }
+}
+
+async function deleteInventoryRow(rowIdx, mfrPn) {
+  if (!confirm(`Remove "${mfrPn}" from inventory? This cannot be undone.`)) return;
+  try {
+    const url = `${APPS_SCRIPT_URL}?action=deleteRow&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${rowIdx}`;
+    await fetch(url);
+    _invCache = null;
+    toast(`Removed: ${mfrPn}`);
+    renderInventory();
+  } catch(e) { toast("Remove failed: " + e.message); }
 }
 
 // DRAWER 
