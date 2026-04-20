@@ -2156,14 +2156,135 @@ function downloadSampleCSV(){downloadFile("sample_order_bom.csv","text/csv","Par
 
 // BULK RECEIVE 
 let bulkPendingItems=[];
-async function autoAssignLocation(){
- // Use NexStore location logic — find first PB with room
- try{const rows=await sheetRead();for(let i=1;i<=72;i++){const loc="PB"+String(i);const count=rows.slice(1).filter(r=>(r[5]||"").trim().toUpperCase()===loc.toUpperCase()).length;if(count<50)return loc;}return"PB1";}
- catch(e){return"PB1";}
+// Takes already-loaded rows to avoid extra sheet reads
+function autoAssignLocationFromRows(sheetRows, usedLocs) {
+  // usedLocs tracks locations assigned in this session (not yet in sheet)
+  for(let i=1;i<=72;i++){
+    const loc="PB"+String(i);
+    const countInSheet=sheetRows.slice(1).filter(r=>(r[5]||"").trim().toUpperCase()===loc.toUpperCase()).length;
+    const countNew=(usedLocs.filter(l=>l.toUpperCase()===loc.toUpperCase())).length;
+    if(countInSheet+countNew<50) return loc;
+  }
+  return "PB1";
 }
 
-async function runBulkPreview(mapping,rows){document.getElementById("bulkStatus").innerHTML='<span class="spinner"></span>Previewing\u2026';document.getElementById("bulkStatus").className="status-bar loading";const items=rows.map(r=>{const qtyPerSet=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;const mfrPn=mapping.MfrPN?String(r[mapping.MfrPN]||"").trim():"";const nexwahPn=mapping.NexwahPN?String(r[mapping.NexwahPN]||"").trim():"";const pn=mfrPn||nexwahPn;return{mfrPn:pn,qty:qtyPerSet*sets,qtyPerSet,sets,desc:mapping.Description?r[mapping.Description]||"":"",supplier:mapping.Supplier?r[mapping.Supplier]||"":"",supplierPn:mapping.SupplierPN?r[mapping.SupplierPN]||"":"",location:mapping.Location?r[mapping.Location]||"":""};}).filter(i=>i.mfrPn&&i.qty>0);try{const sheetRows=await sheetRead();const existing={};sheetRows.slice(1).forEach((r,i)=>{if(r[2])existing[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0};});bulkPendingItems=[];let html="";for(const item of items){const key=item.mfrPn.toUpperCase();if(existing[key]){html+=`<div class="alert alert-info"><b>${item.mfrPn}</b>: Exists \u2014 will add ${item.qty} (current: ${existing[key].qty})</div>`;bulkPendingItems.push({...item,isNew:false,rowIdx:existing[key].rowIdx,currentQty:existing[key].qty});}else{const loc=item.location||(await autoAssignLocation());html+=`<div class="alert alert-success"><b>${item.mfrPn}</b>: NEW \u2014 will add ${item.qty} at ${loc}</div>`;bulkPendingItems.push({...item,isNew:true,finalLocation:loc});}}document.getElementById("bulkResults").innerHTML=`<div class="card"><div class="card-title">Preview</div>${html}</div>`;document.getElementById("bulkConfirmPanel").style.display="block";document.getElementById("bulkConfirmSummary").innerHTML=`${bulkPendingItems.length} parts ready: ${bulkPendingItems.filter(i=>i.isNew).length} new, ${bulkPendingItems.filter(i=>!i.isNew).length} existing.`;document.getElementById("bulkConfirmStatus").style.display="none";document.getElementById("bulkStatus").innerHTML=`\u2713 ${bulkPendingItems.length} parts parsed.`;document.getElementById("bulkStatus").className="status-bar ok";}catch(e){document.getElementById("bulkStatus").innerHTML="Error: "+e.message;document.getElementById("bulkStatus").className="status-bar err";}}
-async function confirmBulkReceive(){const statusEl=document.getElementById("bulkConfirmStatus");statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Processing\u2026';statusEl.className="status-bar loading";const today=todayStr();let done=0;try{for(const item of bulkPendingItems){if(item.isNew){const row=[item.supplierPn,item.supplier,item.mfrPn,item.desc,item.qty,item.finalLocation,today];await sheetAppend(row);await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,0,item.qty,"Bulk receive"]);}else{const newQty=item.currentQty+item.qty;await sheetUpdate(item.rowIdx,newQty,today);await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,item.currentQty,newQty,"Bulk receive"]);}done++;}statusEl.innerHTML=`\u2713 Done. ${done} parts updated.`;statusEl.className="status-bar ok";toast(`Bulk receive: ${done} parts added.`);bulkPendingItems=[];document.getElementById("bulkConfirmPanel").style.display="none";}catch(e){statusEl.innerHTML="Error at part "+(done+1)+": "+e.message;statusEl.className="status-bar err";}}
+async function autoAssignLocation(){
+  try{const rows=await sheetRead();return autoAssignLocationFromRows(rows,[]);}
+  catch(e){return"PB1";}
+}
+
+async function runBulkPreview(mapping,rows){
+  document.getElementById("bulkStatus").innerHTML='<span class="spinner"></span>Previewing\u2026';
+  document.getElementById("bulkStatus").className="status-bar loading";
+
+  const items=rows.map(r=>{
+    const qtyPerSet=parseInt(r[mapping.Quantity])||0;
+    const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;
+    const mfrPn=mapping.MfrPN?String(r[mapping.MfrPN]||"").trim():"";
+    const nexwahPn=mapping.NexwahPN?String(r[mapping.NexwahPN]||"").trim():"";
+    const pn=mfrPn||nexwahPn;
+    const hasMfrPn=!!mfrPn; // true if row has a real MFR PN
+    return{mfrPn:pn,hasMfrPn,qty:qtyPerSet*sets,qtyPerSet,sets,
+      desc:mapping.Description?r[mapping.Description]||"":"",
+      supplier:mapping.Supplier?r[mapping.Supplier]||"":"",
+      supplierPn:mapping.SupplierPN?r[mapping.SupplierPN]||"":"",
+      location:mapping.Location?r[mapping.Location]||"":""};
+  }).filter(i=>i.mfrPn&&i.qty>0);
+
+  try{
+    // Read sheet ONCE
+    const sheetRows=await sheetRead();
+    const existing={};
+    sheetRows.slice(1).forEach((r,i)=>{
+      if(r[2])existing[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0};
+      // Also index by location for Nexwah PN lookup
+      if(r[5])existing[String(r[5]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0};
+    });
+
+    bulkPendingItems=[];
+    let html="";
+    const usedLocs=[]; // track newly assigned locations this session
+    // Build location options HTML once
+    const locOptions = '<option value="">— Auto-assign —</option>' +
+      LOCATIONS.map(loc => {
+        const next = getNextSlot(loc.id);
+        return `<option value="${loc.id}">${loc.id}${loc.name?' · '+loc.name:''} — next: ${slotLabel(loc.id,next)}</option>`;
+      }).join('');
+
+    for(const item of items){
+      const key=item.mfrPn.toUpperCase();
+      const isMfrPn = item.hasMfrPn;
+      if(existing[key]){
+        html+=`<div class="alert alert-info" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <span><b>${item.mfrPn}</b>: Exists \u2014 will add ${item.qty} (current: ${existing[key].qty})</span>
+        </div>`;
+        bulkPendingItems.push({...item,isNew:false,rowIdx:existing[key].rowIdx,currentQty:existing[key].qty});
+      }else{
+        // Auto-assign default location
+        const autoLoc=item.location||autoAssignLocationFromRows(sheetRows,usedLocs);
+        usedLocs.push(autoLoc);
+        const idx=bulkPendingItems.length;
+        // Show location dropdown only for items with a real MFR PN (not Nexwah PN)
+        const hasMfrPn = item.hasMfrPn;
+        if(hasMfrPn){
+          html+=`<div class="alert alert-success" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <span><b>${item.mfrPn}</b>: NEW \u2014 qty: ${item.qty}</span>
+            <select id="bulkLoc_${idx}" style="font-family:var(--mono);font-size:11px;padding:4px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);min-width:180px" onchange="bulkPendingItems[${idx}].finalLocation=this.value||'${autoLoc}'">${locOptions}</select>
+          </div>`;
+        } else {
+          // Nexwah PN — location is same as PN, no dropdown needed
+          html+=`<div class="alert alert-success"><b>${item.mfrPn}</b>: NEW \u2014 will add ${item.qty} at <b>${autoLoc}</b></div>`;
+        }
+        bulkPendingItems.push({...item,isNew:true,finalLocation:autoLoc,_hasMfrPn:hasMfrPn,_idx:idx});
+      }
+    }
+
+    document.getElementById("bulkResults").innerHTML=`<div class="card"><div class="card-title">Preview</div>${html}</div>`;
+    document.getElementById("bulkConfirmPanel").style.display="block";
+    document.getElementById("bulkConfirmSummary").innerHTML=`${bulkPendingItems.length} parts ready: ${bulkPendingItems.filter(i=>i.isNew).length} new, ${bulkPendingItems.filter(i=>!i.isNew).length} existing.`;
+    document.getElementById("bulkConfirmStatus").style.display="none";
+    document.getElementById("bulkStatus").innerHTML=`\u2713 ${bulkPendingItems.length} parts parsed.`;
+    document.getElementById("bulkStatus").className="status-bar ok";
+  }catch(e){
+    document.getElementById("bulkStatus").innerHTML="Error: "+e.message;
+    document.getElementById("bulkStatus").className="status-bar err";
+  }
+}
+
+async function confirmBulkReceive(){
+  const statusEl=document.getElementById("bulkConfirmStatus");
+  statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Processing\u2026';statusEl.className="status-bar loading";
+  const today=todayStr();let done=0;
+  try{
+    // Run all updates in parallel for speed
+    await Promise.all(bulkPendingItems.map(async item=>{
+      if(item.isNew){
+        // For MFR PN items, read the dropdown selection
+        let finalLoc = item.finalLocation;
+        if(item._hasMfrPn){
+          const sel = document.getElementById('bulkLoc_'+item._idx);
+          if(sel && sel.value) finalLoc = claimNextSlot(sel.value);
+          else finalLoc = claimNextSlot(item.finalLocation)||item.finalLocation;
+        }
+        const row=[item.supplierPn,item.supplier,item.mfrPn,item.desc,item.qty,finalLoc,today];
+        await sheetAppend(row);
+        await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,0,item.qty,"Bulk receive"]);
+      }else{
+        const newQty=item.currentQty+item.qty;
+        await sheetUpdate(item.rowIdx,newQty,today);
+        await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,item.currentQty,newQty,"Bulk receive"]);
+      }
+      done++;
+    }));
+    _invCache=null;
+    statusEl.innerHTML=`\u2713 Done. ${bulkPendingItems.length} parts updated.`;statusEl.className="status-bar ok";
+    toast(`Bulk receive: ${bulkPendingItems.length} parts added.`);
+    bulkPendingItems=[];
+    document.getElementById("bulkConfirmPanel").style.display="none";
+  }catch(e){
+    statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";
+  }
+}
 function cancelBulkReceive(){document.getElementById("bulkConfirmPanel").style.display="none";bulkPendingItems=[];}
 function downloadBulkSampleCSV(){downloadFile("sample_bulk_receive.csv","text/csv","Part Number,Quantity,Description,Supplier,Supplier PN,Location\nSN74LVC1G08DCKR,500,IC Gate AND,DigiKey,296-1234-1-ND,PB1\nGRM188R71H104KA93D,2000,Cap 100nF,Mouser,81-GRM188R71H104KA93D,PB1\n");}
 
