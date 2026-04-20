@@ -270,8 +270,42 @@
  <div style="display:flex;gap:0;margin-bottom:18px;border:1px solid var(--border2);border-radius:9px;overflow:hidden;width:fit-content">
  <button id="modeReceive" onclick="setScanMode('receive')" style="padding:9px 24px;font-size:13px;font-weight:600;font-family:var(--sans);border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">Receive</button>
  <button id="modeDispatch" onclick="setScanMode('dispatch')" style="padding:9px 24px;font-size:13px;font-weight:600;font-family:var(--sans);border:none;cursor:pointer;background:var(--surface2);color:var(--muted);transition:all 0.15s">Dispatch</button>
+ <button id="modeLocation" onclick="setScanMode('location')" style="padding:9px 24px;font-size:13px;font-weight:600;font-family:var(--sans);border:none;cursor:pointer;background:var(--surface2);color:var(--muted);transition:all 0.15s">Nexwah PN</button>
  </div>
- <div id="scanModeLabel" style="font-size:12px;color:var(--muted);margin-bottom:14px"><b>Receive mode</b> &mdash; scan incoming delivery labels to add stock</div>
+
+ <!-- Location lookup panel (No MPN) -->
+ <div id="locationLookupPanel" style="display:none">
+   <div class="card" style="margin-bottom:0">
+     <div class="card-title" style="margin-bottom:4px">Register New Part (No MPN)</div>
+ 
+     <div style="display:flex;flex-direction:column;gap:12px">
+       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+         <div class="field"><label>Description *</label><input type="text" id="taobaoDesc" placeholder="e.g. 10K Resistor 0402" /></div>
+         <div class="field"><label>Quantity *</label><input type="number" id="taobaoQty" min="1" value="1" style="font-family:var(--mono)" /></div>
+       </div>
+       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+         <div class="field"><label>Category / Box</label>
+           <select id="taobaoBox" onchange="updateTaobaoNextPn()" style="font-family:var(--mono);font-size:12px">
+             <option value="">— Auto-assign next available —</option>
+           </select>
+         </div>
+         <div class="field"><label>Supplier (optional)</label><input type="text" id="taobaoSupplier" placeholder="e.g. Local supplier" /></div>
+       </div>
+       <div class="field"><label>Notes (optional)</label><input type="text" id="taobaoNotes" placeholder="e.g. Order notes" /></div>
+     </div>
+     <div style="margin-top:16px;padding:12px 14px;background:var(--accent-light);border:1px solid #c3d9ff;border-radius:8px;display:flex;align-items:center;gap:12px">
+       <div>
+         <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent)">Auto-assigned Nexwah PN</div>
+         <div id="taobaoNextPn" style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent)">—</div>
+       </div>
+       
+     </div>
+     <div class="btn-row" style="margin-top:0">
+       <button class="btn btn-primary" onclick="confirmTaobaoReceive()">Register &amp; Add to Inventory</button>
+     </div>
+     <div id="taobaoStatus" class="status-bar" style="margin-top:10px;display:none"></div>
+   </div>
+ </div>
  <div class="scanner-layout">
  <div>
  <div class="video-wrap">
@@ -296,7 +330,7 @@
  <input type="text" id="scanMfrPn" placeholder="Manufacturer PN" style="font-family:var(--mono);font-size:16px;font-weight:500;color:var(--accent);flex:1;padding:8px 12px;border:2px solid var(--border2);border-radius:8px;outline:none;" oninput="this.style.borderColor='var(--warn)'" />
  <button class="btn btn-secondary" onclick="recheckMfrPn()" style="white-space:nowrap;padding:8px 12px;font-size:12px">Re-check</button>
  </div>
- <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Edit if Claude misread a character, then click Re-check</div>
+ 
  <div id="scanSupplierBadge" style="margin:4px 0 10px"></div>
  <div class="form-grid" style="margin-bottom:10px">
  <div class="field"><label>Supplier PN</label><input type="text" id="scanSupplierPn" placeholder="e.g. 296-11602-1-ND" /></div>
@@ -333,7 +367,7 @@
    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
      <div>
        <div style="font-size:14px;font-weight:600;color:var(--text)">Export Results</div>
-       <div style="font-size:12px;color:var(--muted);margin-top:2px">Downloads your original BOM with a new <b>Stock Status</b> column added</div>
+       
      </div>
      <button class="btn btn-primary" onclick="exportBomReport()">Download Report (.xlsx)</button>
    </div>
@@ -355,7 +389,7 @@
  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
  <div>
  <div style="font-size:16px;font-weight:700;color:var(--text)">Inventory</div>
- <div style="font-size:12px;color:var(--muted);margin-top:2px">Click any row to view details and update stock</div>
+ 
  </div>
  <div style="display:flex;gap:8px;flex-wrap:wrap">
  <button class="btn btn-primary btn-sm" onclick="openNewPartDrawer()">+ Add New Part</button>
@@ -366,7 +400,7 @@
  <div class="search-bar" style="margin-bottom:0">
  <input type="text" id="invSearch" placeholder="Search by part number, description, location&hellip;" oninput="filterInventory()" />
  </div>
- <div style="font-size:12px;color:var(--muted);margin-top:8px">Rows in red have &le;5 units. Use <b>+/&minus;</b> for quick adjustments, or click a row to open details.</div>
+ 
  </div>
  <div class="table-wrap">
  <table>
@@ -571,7 +605,7 @@
     <div class="field">
      <label>Box ID</label>
      <input type="text" id="newBoxId" placeholder="e.g. PB73" style="font-family:var(--mono);font-weight:600;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" />
-     <div style="font-size:11px;color:var(--muted);margin-top:3px">Next available: <b id="newBoxSuggest">—</b></div>
+     
     </div>
     <div class="field">
      <label>Description / Component Type</label>
@@ -728,7 +762,7 @@
  <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
   <div style="padding:24px 28px 0;flex-shrink:0">
    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px" id="colMapTitle">Confirm Column Mapping</div>
-   <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5">Check each column match before processing.</div>
+
    <div id="colMapPreviewRow" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;font-family:var(--mono);color:var(--muted);overflow-x:auto;white-space:nowrap"></div>
   </div>
   <div id="colMapFields" style="padding:0 28px 12px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1;min-height:0"></div>
@@ -1564,18 +1598,121 @@ async function renderTransactions() {
 // SCAN MODE 
 let scanMode="receive";
 function setScanMode(mode) {
- scanMode=mode; const isReceive=mode==="receive";
- document.getElementById("modeReceive").style.background=isReceive?"var(--accent)":"var(--surface2)"; document.getElementById("modeReceive").style.color=isReceive?"#fff":"var(--muted)";
- document.getElementById("modeDispatch").style.background=!isReceive?"#dc2626":"var(--surface2)"; document.getElementById("modeDispatch").style.color=!isReceive?"#fff":"var(--muted)";
- document.getElementById("scanModeLabel").innerHTML=isReceive?"<b>Receive mode</b> \u2014 scan incoming delivery labels to add stock":"<b>Dispatch mode</b> \u2014 scan components being taken out for a project";
- document.getElementById("scanLocationField").style.display=isReceive?"":"none";
- document.getElementById("scanInvPanel").style.display="none";
- document.getElementById("scanMfrPn").value=""; document.getElementById("scanMfrPn").style.borderColor="var(--border2)";
- document.getElementById("scanSupplierBadge").innerHTML=""; document.getElementById("scanSupplierPn").value=""; document.getElementById("scanDesc").value=""; document.getElementById("scanLocation").value=""; document.getElementById("scanNotes").value="";
- setCamStatus("Mode changed. Scan a label.","");
+ scanMode=mode;
+ const isReceive=mode==="receive";
+ const isDispatch=mode==="dispatch";
+ const isLocation=mode==="location";
+
+ // Mode buttons
+ document.getElementById("modeReceive").style.background=isReceive?"var(--accent)":"var(--surface2)";
+ document.getElementById("modeReceive").style.color=isReceive?"#fff":"var(--muted)";
+ document.getElementById("modeDispatch").style.background=isDispatch?"#dc2626":"var(--surface2)";
+ document.getElementById("modeDispatch").style.color=isDispatch?"#fff":"var(--muted)";
+ document.getElementById("modeLocation").style.background=isLocation?"#0a7a3e":"var(--surface2)";
+ document.getElementById("modeLocation").style.color=isLocation?"#fff":"var(--muted)";
+
+ // Show/hide panels
+ const scannerLayout = document.querySelector(".scanner-layout");
+ const locPanel = document.getElementById("locationLookupPanel");
+ if(isLocation){
+   if(scannerLayout) scannerLayout.style.display="none";
+   if(locPanel) locPanel.style.display="block";
+   
+   document.getElementById("locLookupInput") && (document.getElementById("locLookupInput").value="");
+   document.getElementById("locLookupStatus") && (document.getElementById("locLookupStatus").style.display="none");
+   document.getElementById("locLookupResult") && (document.getElementById("locLookupResult").innerHTML="");
+   populateTaobaoBoxDropdown();
+   updateTaobaoNextPn();
+   setTimeout(()=>{ const el=document.getElementById("taobaoDesc"); if(el) el.focus(); },100);
+ } else {
+   if(scannerLayout) scannerLayout.style.display="";
+   if(locPanel) locPanel.style.display="none";
+   
+   document.getElementById("scanLocationField").style.display=isReceive?"":"none";
+   document.getElementById("scanInvPanel").style.display="none";
+   document.getElementById("scanMfrPn").value=""; document.getElementById("scanMfrPn").style.borderColor="var(--border2)";
+   document.getElementById("scanSupplierBadge").innerHTML=""; document.getElementById("scanSupplierPn").value=""; document.getElementById("scanDesc").value=""; document.getElementById("scanLocation").value=""; document.getElementById("scanNotes").value="";
+   setCamStatus("Mode changed. Scan a label.","");
+ }
+}
+
+let _nexwahPnTimer = null;
+// ── TAOBAO / NO-MPN REGISTER ──────────────────────────────
+function populateTaobaoBoxDropdown() {
+  const sel = document.getElementById("taobaoBox");
+  if (!sel) return;
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">— Auto-assign next available —</option>';
+  LOCATIONS.forEach(loc => {
+    const opt = document.createElement('option');
+    opt.value = loc.id;
+    const next = getNextSlot(loc.id);
+    opt.textContent = loc.id + (loc.name ? ' · ' + loc.name : '') + ' — next: ' + slotLabel(loc.id, next);
+    sel.appendChild(opt);
+  });
+  if (currentVal) sel.value = currentVal;
+  updateTaobaoNextPn();
+}
+
+function updateTaobaoNextPn() {
+  const boxId = document.getElementById("taobaoBox")?.value;
+  const el = document.getElementById("taobaoNextPn");
+  if (!el) return;
+  if (boxId) {
+    el.textContent = slotLabel(boxId, getNextSlot(boxId));
+  } else {
+    // Show next overall available slot across all PB boxes
+    for (const loc of LOCATIONS) {
+      if (loc.type === 'PB') {
+        el.textContent = slotLabel(loc.id, getNextSlot(loc.id));
+        break;
+      }
+    }
+  }
+}
+
+async function confirmTaobaoReceive() {
+  const desc     = document.getElementById("taobaoDesc").value.trim();
+  const qty      = parseInt(document.getElementById("taobaoQty").value)||0;
+  const boxId    = document.getElementById("taobaoBox").value.trim();
+  const supplier = document.getElementById("taobaoSupplier").value.trim() || "Unknown";
+  const notes    = document.getElementById("taobaoNotes").value.trim();
+  const statusEl = document.getElementById("taobaoStatus");
+
+  if (!desc) { statusEl.style.display="block"; statusEl.innerHTML="Description is required."; statusEl.className="status-bar err"; return; }
+  if (qty<=0) { statusEl.style.display="block"; statusEl.innerHTML="Quantity must be at least 1."; statusEl.className="status-bar err"; return; }
+
+  statusEl.style.display="block"; statusEl.innerHTML='<span class="spinner"></span>Registering\u2026'; statusEl.className="status-bar loading";
+  const today = todayStr();
+
+  try {
+    // Assign Nexwah PN = slot label
+    const finalBoxId = boxId || (() => { for (const loc of LOCATIONS) { if (loc.type==='PB') return loc.id; } return 'PB01'; })();
+    const nexwahPn = claimNextSlot(finalBoxId);
+
+    // Use Nexwah PN as the MFR PN since there is none
+    const row = ["", supplier, nexwahPn, desc, qty, nexwahPn, today];
+    const res = await sheetAppend(row);
+    if (res.trim() !== "ok") throw new Error(res);
+    await sheetAppendTx([today, nexwahPn, supplier, "Receive", qty, 0, qty, notes||"Receive"]);
+    _invCache = null;
+
+    statusEl.innerHTML=`\u2713 Registered! Nexwah PN: <b style="font-family:var(--mono);font-size:15px">${nexwahPn}</b> — Print and stick this on the box.`;
+    statusEl.className="status-bar ok";
+    toast(`Registered: ${nexwahPn}`);
+
+    // Reset form for next item
+    document.getElementById("taobaoDesc").value="";
+    document.getElementById("taobaoQty").value="1";
+    document.getElementById("taobaoNotes").value="";
+    populateTaobaoBoxDropdown();
+  } catch(e) {
+    statusEl.innerHTML="Error: "+e.message; statusEl.className="status-bar err";
+  }
 }
 
 // CAMERA 
+
 async function startCamera() {
  try { if (currentStream) stopCamera(); const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1920},height:{ideal:1080}},audio:false}); currentStream=stream; document.getElementById("video").srcObject=stream; setCamStatus("Camera started. Align the full label in the box, then press Scan.","ok"); }
  catch(err){setCamStatus("Camera error: "+err.message,"err");}
@@ -1637,7 +1774,25 @@ async function handleScanResult(parsed,dataUrl,method){
 
 function showSupplierBadge(elId,supplier){const map={DigiKey:"badge-digikey",Mouser:"badge-mouser",Octopart:"badge-octopart"};document.getElementById(elId).innerHTML=`<span class="supplier-badge ${map[supplier]||"badge-unknown"}">${supplier||"Unknown"}</span>`;}
 async function recheckMfrPn(){const mfrPn=document.getElementById("scanMfrPn").value.trim();if(!mfrPn){setCamStatus("Enter a part number to check.","err");return;}document.getElementById("scanMfrPn").style.borderColor="var(--accent)";if(currentScan)currentScan.mfrPartNumber=mfrPn;else currentScan={mfrPartNumber:mfrPn,supplier:"Unknown",supplierPartNumber:"",description:document.getElementById("scanDesc").value,date:todayStr()};setCamStatus('<span class="spinner"></span>Checking inventory\u2026',"loading");await lookupForScan(mfrPn);}
-async function lookupForScan(mfrPn){try{const rows=await sheetRead();let foundRow=null,foundIdx=-1;for(let i=1;i<rows.length;i++){if(String(rows[i][2]||"").trim().toUpperCase()===String(mfrPn||"").trim().toUpperCase()){foundRow=rows[i];foundIdx=i+1;break;}}showScanInvPanel(foundRow,foundIdx);if(scanMode==="dispatch")setCamStatus(foundRow?`\u2713 Found \u2014 ${foundRow[4]||0} units in stock at ${foundRow[5]||"unknown location"}.`:`"${mfrPn}" not found in inventory.`,foundRow?"ok":"err");else setCamStatus(foundRow?`\u2713 Found in inventory. Current stock: ${foundRow[4]||0} units at ${foundRow[5]||"no location"}.`:`"${mfrPn}" not in inventory yet \u2014 add it below.`,foundRow?"ok":"warn");}catch(e){setCamStatus("Sheet lookup failed: "+e.message,"err");showScanInvPanel(null,-1);}}
+async function lookupForScan(mfrPn){
+  try{
+    const rows=await sheetRead();
+    let foundRow=null,foundIdx=-1;
+    const query=String(mfrPn||"").trim().toUpperCase();
+    // Check if scanned code looks like a Nexwah PN (e.g. PB10-14, PB35-04)
+    const isNexwahPn=/^[A-Z]{1,4}\d{1,3}-\d{1,3}$/.test(query);
+    for(let i=1;i<rows.length;i++){
+      const rowMpn=String(rows[i][2]||"").trim().toUpperCase();
+      const rowLoc=String(rows[i][5]||"").trim().toUpperCase();
+      if(rowMpn===query || (isNexwahPn && rowLoc===query)){
+        foundRow=rows[i];foundIdx=i+1;break;
+      }
+    }
+    showScanInvPanel(foundRow,foundIdx);
+    if(scanMode==="dispatch")setCamStatus(foundRow?`\u2713 Found \u2014 ${foundRow[4]||0} units in stock at ${foundRow[5]||"unknown location"}.`:`"${mfrPn}" not found in inventory.`,foundRow?"ok":"err");
+    else setCamStatus(foundRow?`\u2713 Found in inventory. Current stock: ${foundRow[4]||0} units at ${foundRow[5]||"no location"}.`:`"${mfrPn}" not in inventory yet \u2014 add it below.`,foundRow?"ok":"warn");
+  }catch(e){setCamStatus("Sheet lookup failed: "+e.message,"err");showScanInvPanel(null,-1);}
+}
 function showScanInvPanel(row,rowIdx){
   const panel=document.getElementById("scanInvPanel");
   panel.style.display="block";
