@@ -1201,7 +1201,7 @@ const COL_MAP_FIELDS_BOM = [
  { key:"MfrPN",     label:"Mfr Part Number",    required:false },
  { key:"NexwahPN",  label:"Nexwah PN",           required:false },
  { key:"Quantity",  label:"Quantity (per set)",  required:true  },
- { key:"Sets",      label:"Sets / Multiplier",   required:false },
+ { key:"Sets",      label:"No. of Sets (only if >1 board)",   required:false },
  { key:"Description",label:"Description",        required:false },
  { key:"Supplier",  label:"Supplier",            required:false },
  { key:"SupplierPN",label:"Supplier PN",         required:false },
@@ -1210,7 +1210,7 @@ const COL_MAP_FIELDS_BULK = [
  { key:"MfrPN",     label:"Mfr Part Number",    required:false },
  { key:"NexwahPN",  label:"Nexwah PN",           required:false },
  { key:"Quantity",  label:"Quantity (per set)",  required:true  },
- { key:"Sets",      label:"Sets / Multiplier",   required:false },
+ { key:"Sets",      label:"No. of Sets (only if >1 board)",   required:false },
  { key:"Description",label:"Description",        required:false },
  { key:"Supplier",  label:"Supplier",            required:false },
  { key:"SupplierPN",label:"Supplier PN",         required:false },
@@ -1224,7 +1224,7 @@ function autoDetectColumns(headers) {
  mapping.MfrPN     = find(/^(MFR\s*PART|MFR\s*PN|MPN|MANUFACTURER|PART\s*NO?\.?|PART\s*NUMBER|PART\s*#|MFG\s*PN)$/,/PART.*NUM/,/MFR.*PN/);
  mapping.NexwahPN  = find(/^(NEXWAH\s*PN|NEXWAH\s*PART|NEXWAH|NPN)$/,/NEXWAH/);
  mapping.Quantity  = find(/^(QTY|QUANTITY|REQ|REQUIRED|COUNT|AMOUNT)$/,/QUANT/,/QTY/);
- mapping.Sets      = find(/^(\d+\s*SETS?|SETS?|MULTIPLIER|MULT|NOS?\.?|NO\s*OF\s*SETS?|BOARDS?|RUNS?|COPIES)$/,/SETS?$/,/\d+\s*SET/);
+ mapping.Sets      = find(/^([2-9]\s*SETS?|[1-9]\d+\s*SETS?|SETS?|MULTIPLIER|MULT|NO\s*OF\s*SETS?|BOARDS?|RUNS?|COPIES)$/,/^[2-9]\s*SET/,/^SETS?$/);
  mapping.Description = find(/^(DESC|DESCRIPTION|NAME|COMPONENT|ITEM)$/,/DESC/);
  mapping.Supplier  = find(/^(SUPPLIER|VENDOR|SOURCE|DISTRIBUTOR)$/,/SUPPLIER/,/VENDOR/);
  mapping.SupplierPN= find(/^(SUPPLIER\s*PN|SUPPLIER\s*PART|SUPP\s*PN|ORDER\s*CODE|DISTRIBUTOR\s*PN|DIST\s*PN|CPN)$/,/SUPPLIER.*PN/,/SUPPLIER.*PART/);
@@ -2049,12 +2049,12 @@ async function runBomCheck(mapping,rows){
 
   const items=rows.map(r=>{
     const qty=parseInt(r[mapping.Quantity])||0;
-    const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;
+    const sets=mapping.Sets?(Math.max(1,parseInt(r[mapping.Sets])||1)):1; // sets only multiplies if >1
     // Use MFR PN if available, otherwise fall back to Nexwah PN
     const mfrPn = mapping.MfrPN ? String(r[mapping.MfrPN]||"").trim() : "";
     const nexwahPn = mapping.NexwahPN ? String(r[mapping.NexwahPN]||"").trim() : "";
     const pn = mfrPn || nexwahPn;
-    return{pn,qty:qty*sets,qtyPerSet:qty,sets,_row:r};
+    return{pn,qty:sets>1?qty*sets:qty,qtyPerSet:qty,sets,_row:r};
   }).filter(i=>i.pn&&i.qty>0);
   const setsUsed=mapping.Sets&&items.some(i=>i.sets>1);
   try{
@@ -2179,12 +2179,12 @@ async function runBulkPreview(mapping,rows){
 
   const items=rows.map(r=>{
     const qtyPerSet=parseInt(r[mapping.Quantity])||0;
-    const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;
+    const sets=mapping.Sets?(Math.max(1,parseInt(r[mapping.Sets])||1)):1; // sets only multiplies if >1
     const mfrPn=mapping.MfrPN?String(r[mapping.MfrPN]||"").trim():"";
     const nexwahPn=mapping.NexwahPN?String(r[mapping.NexwahPN]||"").trim():"";
     const pn=mfrPn||nexwahPn;
     const hasMfrPn=!!mfrPn; // true if row has a real MFR PN
-    return{mfrPn:pn,hasMfrPn,qty:qtyPerSet*sets,qtyPerSet,sets,
+    return{mfrPn:pn,hasMfrPn,qty:sets>1?qtyPerSet*sets:qtyPerSet,qtyPerSet,sets,
       desc:mapping.Description?r[mapping.Description]||"":"",
       supplier:mapping.Supplier?r[mapping.Supplier]||"":"",
       supplierPn:mapping.SupplierPN?r[mapping.SupplierPN]||"":"",
