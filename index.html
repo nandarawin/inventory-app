@@ -1198,34 +1198,37 @@ function confirmAddComponent() {
 let colMapContext = null;
 let colMapCallback = null;
 const COL_MAP_FIELDS_BOM = [
- { key:"MfrPN", label:"Mfr Part Number / Nexwah PN", required:true },
- { key:"Quantity", label:"Quantity (per set)", required:true },
- { key:"Sets", label:"Sets / Multiplier", required:false },
- { key:"Description", label:"Description", required:false },
- { key:"Supplier", label:"Supplier", required:false },
- { key:"SupplierPN", label:"Supplier PN", required:false },
+ { key:"MfrPN",     label:"Mfr Part Number",    required:false },
+ { key:"NexwahPN",  label:"Nexwah PN",           required:false },
+ { key:"Quantity",  label:"Quantity (per set)",  required:true  },
+ { key:"Sets",      label:"Sets / Multiplier",   required:false },
+ { key:"Description",label:"Description",        required:false },
+ { key:"Supplier",  label:"Supplier",            required:false },
+ { key:"SupplierPN",label:"Supplier PN",         required:false },
 ];
 const COL_MAP_FIELDS_BULK = [
- { key:"MfrPN", label:"Mfr Part Number / Nexwah PN", required:true },
- { key:"Quantity", label:"Quantity (per set)", required:true },
- { key:"Sets", label:"Sets / Multiplier", required:false },
- { key:"Description", label:"Description", required:false },
- { key:"Supplier", label:"Supplier", required:false },
- { key:"SupplierPN", label:"Supplier PN", required:false },
- { key:"Location", label:"Location", required:false },
+ { key:"MfrPN",     label:"Mfr Part Number",    required:false },
+ { key:"NexwahPN",  label:"Nexwah PN",           required:false },
+ { key:"Quantity",  label:"Quantity (per set)",  required:true  },
+ { key:"Sets",      label:"Sets / Multiplier",   required:false },
+ { key:"Description",label:"Description",        required:false },
+ { key:"Supplier",  label:"Supplier",            required:false },
+ { key:"SupplierPN",label:"Supplier PN",         required:false },
+ { key:"Location",  label:"Location",            required:false },
 ];
 
 function autoDetectColumns(headers) {
  const mapping = {};
  const h = headers.map(x => x.toUpperCase().trim());
  const find = (...patterns) => { for (const p of patterns) { const idx=h.findIndex(x=>p.test(x)); if (idx>=0) return headers[idx]; } return ""; };
- mapping.MfrPN = find(/^(MFR\s*PART|MFR\s*PN|MPN|MANUFACTURER|PART\s*NO?\.?|PART\s*NUMBER|PART\s*#|PN|MFG\s*PN|NEXWAH\s*PN|NEXWAH\s*PART|NPN|NEXWAH)$/,/PART.*NUM/,/MFR.*PN/,/NEXWAH/);
- mapping.Quantity = find(/^(QTY|QUANTITY|REQ|REQUIRED|COUNT|AMOUNT)$/,/QUANT/,/QTY/);
- mapping.Sets = find(/^(\d+\s*SETS?|SETS?|MULTIPLIER|MULT|NOS?\.?|NO\s*OF\s*SETS?|BOARDS?|RUNS?|COPIES)$/,/SETS?$/,/\d+\s*SET/);
+ mapping.MfrPN     = find(/^(MFR\s*PART|MFR\s*PN|MPN|MANUFACTURER|PART\s*NO?\.?|PART\s*NUMBER|PART\s*#|MFG\s*PN)$/,/PART.*NUM/,/MFR.*PN/);
+ mapping.NexwahPN  = find(/^(NEXWAH\s*PN|NEXWAH\s*PART|NEXWAH|NPN)$/,/NEXWAH/);
+ mapping.Quantity  = find(/^(QTY|QUANTITY|REQ|REQUIRED|COUNT|AMOUNT)$/,/QUANT/,/QTY/);
+ mapping.Sets      = find(/^(\d+\s*SETS?|SETS?|MULTIPLIER|MULT|NOS?\.?|NO\s*OF\s*SETS?|BOARDS?|RUNS?|COPIES)$/,/SETS?$/,/\d+\s*SET/);
  mapping.Description = find(/^(DESC|DESCRIPTION|NAME|COMPONENT|ITEM)$/,/DESC/);
- mapping.Supplier = find(/^(SUPPLIER|VENDOR|SOURCE|DISTRIBUTOR)$/,/SUPPLIER/,/VENDOR/);
- mapping.SupplierPN = find(/^(SUPPLIER\s*PN|SUPPLIER\s*PART|SUPP\s*PN|ORDER\s*CODE|DISTRIBUTOR\s*PN|DIST\s*PN|CPN)$/,/SUPPLIER.*PN/,/SUPPLIER.*PART/);
- mapping.Location = find(/^(LOCATION|LOC|BIN|SHELF|STORAGE|POSITION)$/,/LOCAT/);
+ mapping.Supplier  = find(/^(SUPPLIER|VENDOR|SOURCE|DISTRIBUTOR)$/,/SUPPLIER/,/VENDOR/);
+ mapping.SupplierPN= find(/^(SUPPLIER\s*PN|SUPPLIER\s*PART|SUPP\s*PN|ORDER\s*CODE|DISTRIBUTOR\s*PN|DIST\s*PN|CPN)$/,/SUPPLIER.*PN/,/SUPPLIER.*PART/);
+ mapping.Location  = find(/^(LOCATION|LOC|BIN|SHELF|STORAGE|POSITION)$/,/LOCAT/);
  return mapping;
 }
 
@@ -1268,6 +1271,8 @@ function confirmColMapping() {
  const fields=colMapContext.mode==="bom"?COL_MAP_FIELDS_BOM:COL_MAP_FIELDS_BULK;
  const confirmedMapping={}; const missing=[];
  fields.forEach(f=>{ const val=(document.getElementById("colmap_"+f.key)||{}).value||""; if (val) confirmedMapping[f.key]=val; else if (f.required) missing.push(f.label); });
+ // At least one of MfrPN or NexwahPN must be mapped
+ if (!confirmedMapping.MfrPN && !confirmedMapping.NexwahPN) { alert("Please map at least one of: Mfr Part Number or Nexwah PN"); return; }
  if (missing.length>0) { alert(`Required columns not mapped: ${missing.join(", ")}`); return; }
  document.getElementById("colMapModal").style.display="none";
  const {parsedRows}=colMapContext; const cb=colMapCallback;
@@ -2042,7 +2047,15 @@ async function runBomCheck(mapping,rows){
   _bomOriginalHeaders = rows.length ? Object.keys(rows[0]) : [];
   _bomOriginalMapping = mapping;
 
-  const items=rows.map(r=>{const qty=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;return{pn:r[mapping.MfrPN]||"",qty:qty*sets,qtyPerSet:qty,sets,_row:r};}).filter(i=>i.pn&&i.qty>0);
+  const items=rows.map(r=>{
+    const qty=parseInt(r[mapping.Quantity])||0;
+    const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;
+    // Use MFR PN if available, otherwise fall back to Nexwah PN
+    const mfrPn = mapping.MfrPN ? String(r[mapping.MfrPN]||"").trim() : "";
+    const nexwahPn = mapping.NexwahPN ? String(r[mapping.NexwahPN]||"").trim() : "";
+    const pn = mfrPn || nexwahPn;
+    return{pn,qty:qty*sets,qtyPerSet:qty,sets,_row:r};
+  }).filter(i=>i.pn&&i.qty>0);
   const setsUsed=mapping.Sets&&items.some(i=>i.sets>1);
   try{
     const sheetRows=await sheetRead();
@@ -2149,7 +2162,7 @@ async function autoAssignLocation(){
  catch(e){return"PB1";}
 }
 
-async function runBulkPreview(mapping,rows){document.getElementById("bulkStatus").innerHTML='<span class="spinner"></span>Previewing\u2026';document.getElementById("bulkStatus").className="status-bar loading";const items=rows.map(r=>{const qtyPerSet=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;return{mfrPn:r[mapping.MfrPN]||"",qty:qtyPerSet*sets,qtyPerSet,sets,desc:mapping.Description?r[mapping.Description]||"":"",supplier:mapping.Supplier?r[mapping.Supplier]||"":"",supplierPn:mapping.SupplierPN?r[mapping.SupplierPN]||"":"",location:mapping.Location?r[mapping.Location]||"":""};}).filter(i=>i.mfrPn&&i.qty>0);try{const sheetRows=await sheetRead();const existing={};sheetRows.slice(1).forEach((r,i)=>{if(r[2])existing[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0};});bulkPendingItems=[];let html="";for(const item of items){const key=item.mfrPn.toUpperCase();if(existing[key]){html+=`<div class="alert alert-info"><b>${item.mfrPn}</b>: Exists \u2014 will add ${item.qty} (current: ${existing[key].qty})</div>`;bulkPendingItems.push({...item,isNew:false,rowIdx:existing[key].rowIdx,currentQty:existing[key].qty});}else{const loc=item.location||(await autoAssignLocation());html+=`<div class="alert alert-success"><b>${item.mfrPn}</b>: NEW \u2014 will add ${item.qty} at ${loc}</div>`;bulkPendingItems.push({...item,isNew:true,finalLocation:loc});}}document.getElementById("bulkResults").innerHTML=`<div class="card"><div class="card-title">Preview</div>${html}</div>`;document.getElementById("bulkConfirmPanel").style.display="block";document.getElementById("bulkConfirmSummary").innerHTML=`${bulkPendingItems.length} parts ready: ${bulkPendingItems.filter(i=>i.isNew).length} new, ${bulkPendingItems.filter(i=>!i.isNew).length} existing.`;document.getElementById("bulkConfirmStatus").style.display="none";document.getElementById("bulkStatus").innerHTML=`\u2713 ${bulkPendingItems.length} parts parsed.`;document.getElementById("bulkStatus").className="status-bar ok";}catch(e){document.getElementById("bulkStatus").innerHTML="Error: "+e.message;document.getElementById("bulkStatus").className="status-bar err";}}
+async function runBulkPreview(mapping,rows){document.getElementById("bulkStatus").innerHTML='<span class="spinner"></span>Previewing\u2026';document.getElementById("bulkStatus").className="status-bar loading";const items=rows.map(r=>{const qtyPerSet=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?parseInt(r[mapping.Sets])||1:1;const mfrPn=mapping.MfrPN?String(r[mapping.MfrPN]||"").trim():"";const nexwahPn=mapping.NexwahPN?String(r[mapping.NexwahPN]||"").trim():"";const pn=mfrPn||nexwahPn;return{mfrPn:pn,qty:qtyPerSet*sets,qtyPerSet,sets,desc:mapping.Description?r[mapping.Description]||"":"",supplier:mapping.Supplier?r[mapping.Supplier]||"":"",supplierPn:mapping.SupplierPN?r[mapping.SupplierPN]||"":"",location:mapping.Location?r[mapping.Location]||"":""};}).filter(i=>i.mfrPn&&i.qty>0);try{const sheetRows=await sheetRead();const existing={};sheetRows.slice(1).forEach((r,i)=>{if(r[2])existing[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0};});bulkPendingItems=[];let html="";for(const item of items){const key=item.mfrPn.toUpperCase();if(existing[key]){html+=`<div class="alert alert-info"><b>${item.mfrPn}</b>: Exists \u2014 will add ${item.qty} (current: ${existing[key].qty})</div>`;bulkPendingItems.push({...item,isNew:false,rowIdx:existing[key].rowIdx,currentQty:existing[key].qty});}else{const loc=item.location||(await autoAssignLocation());html+=`<div class="alert alert-success"><b>${item.mfrPn}</b>: NEW \u2014 will add ${item.qty} at ${loc}</div>`;bulkPendingItems.push({...item,isNew:true,finalLocation:loc});}}document.getElementById("bulkResults").innerHTML=`<div class="card"><div class="card-title">Preview</div>${html}</div>`;document.getElementById("bulkConfirmPanel").style.display="block";document.getElementById("bulkConfirmSummary").innerHTML=`${bulkPendingItems.length} parts ready: ${bulkPendingItems.filter(i=>i.isNew).length} new, ${bulkPendingItems.filter(i=>!i.isNew).length} existing.`;document.getElementById("bulkConfirmStatus").style.display="none";document.getElementById("bulkStatus").innerHTML=`\u2713 ${bulkPendingItems.length} parts parsed.`;document.getElementById("bulkStatus").className="status-bar ok";}catch(e){document.getElementById("bulkStatus").innerHTML="Error: "+e.message;document.getElementById("bulkStatus").className="status-bar err";}}
 async function confirmBulkReceive(){const statusEl=document.getElementById("bulkConfirmStatus");statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Processing\u2026';statusEl.className="status-bar loading";const today=todayStr();let done=0;try{for(const item of bulkPendingItems){if(item.isNew){const row=[item.supplierPn,item.supplier,item.mfrPn,item.desc,item.qty,item.finalLocation,today];await sheetAppend(row);await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,0,item.qty,"Bulk receive"]);}else{const newQty=item.currentQty+item.qty;await sheetUpdate(item.rowIdx,newQty,today);await sheetAppendTx([today,item.mfrPn,item.supplier,"Receive",item.qty,item.currentQty,newQty,"Bulk receive"]);}done++;}statusEl.innerHTML=`\u2713 Done. ${done} parts updated.`;statusEl.className="status-bar ok";toast(`Bulk receive: ${done} parts added.`);bulkPendingItems=[];document.getElementById("bulkConfirmPanel").style.display="none";}catch(e){statusEl.innerHTML="Error at part "+(done+1)+": "+e.message;statusEl.className="status-bar err";}}
 function cancelBulkReceive(){document.getElementById("bulkConfirmPanel").style.display="none";bulkPendingItems=[];}
 function downloadBulkSampleCSV(){downloadFile("sample_bulk_receive.csv","text/csv","Part Number,Quantity,Description,Supplier,Supplier PN,Location\nSN74LVC1G08DCKR,500,IC Gate AND,DigiKey,296-1234-1-ND,PB1\nGRM188R71H104KA93D,2000,Cap 100nF,Mouser,81-GRM188R71H104KA93D,PB1\n");}
