@@ -2216,24 +2216,21 @@ async function runBulkPreview(mapping,rows){
       const isMfrPn = item.hasMfrPn;
       if(existing[key]){
         html+=`<div class="alert alert-info" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <span><b>${item.mfrPn}</b>: Exists \u2014 will add ${item.qty} (current: ${existing[key].qty})</span>
+          <div><b>${item.mfrPn}</b>${item.desc?` <span style="color:var(--muted);font-size:12px">— ${item.desc}</span>`:''}<br><span style="font-size:12px;color:var(--muted)">Exists — will add ${item.qty} (current: ${existing[key].qty})</span></div>
         </div>`;
         bulkPendingItems.push({...item,isNew:false,rowIdx:existing[key].rowIdx,currentQty:existing[key].qty});
       }else{
-        // Auto-assign default location
         const autoLoc=item.location||autoAssignLocationFromRows(sheetRows,usedLocs);
         usedLocs.push(autoLoc);
         const idx=bulkPendingItems.length;
-        // Show location dropdown only for items with a real MFR PN (not Nexwah PN)
         const hasMfrPn = item.hasMfrPn;
         if(hasMfrPn){
           html+=`<div class="alert alert-success" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-            <span><b>${item.mfrPn}</b>: NEW \u2014 qty: ${item.qty}</span>
+            <div><b>${item.mfrPn}</b>${item.desc?` <span style="color:var(--muted);font-size:12px">— ${item.desc}</span>`:''}<br><span style="font-size:12px;color:var(--muted)">NEW — qty: ${item.qty}</span></div>
             <select id="bulkLoc_${idx}" style="font-family:var(--mono);font-size:11px;padding:4px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);min-width:180px" onchange="bulkPendingItems[${idx}].finalLocation=this.value||'${autoLoc}'">${locOptions}</select>
           </div>`;
         } else {
-          // Nexwah PN — location is same as PN, no dropdown needed
-          html+=`<div class="alert alert-success"><b>${item.mfrPn}</b>: NEW \u2014 will add ${item.qty} at <b>${autoLoc}</b></div>`;
+          html+=`<div class="alert alert-success"><b>${item.mfrPn}</b>${item.desc?` <span style="color:var(--muted);font-size:12px">— ${item.desc}</span>`:''} <span style="font-size:12px;color:var(--muted)">— NEW, qty: ${item.qty}, location: <b>${autoLoc}</b></span></div>`;
         }
         bulkPendingItems.push({...item,isNew:true,finalLocation:autoLoc,_hasMfrPn:hasMfrPn,_idx:idx});
       }
