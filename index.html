@@ -1198,7 +1198,7 @@ function confirmAddComponent() {
 let colMapContext = null;
 let colMapCallback = null;
 const COL_MAP_FIELDS_BOM = [
- { key:"MfrPN", label:"Mfr Part Number", required:true },
+ { key:"MfrPN", label:"Mfr Part Number / Nexwah PN", required:true },
  { key:"Quantity", label:"Quantity (per set)", required:true },
  { key:"Sets", label:"Sets / Multiplier", required:false },
  { key:"Description", label:"Description", required:false },
@@ -1206,7 +1206,7 @@ const COL_MAP_FIELDS_BOM = [
  { key:"SupplierPN", label:"Supplier PN", required:false },
 ];
 const COL_MAP_FIELDS_BULK = [
- { key:"MfrPN", label:"Mfr Part Number", required:true },
+ { key:"MfrPN", label:"Mfr Part Number / Nexwah PN", required:true },
  { key:"Quantity", label:"Quantity (per set)", required:true },
  { key:"Sets", label:"Sets / Multiplier", required:false },
  { key:"Description", label:"Description", required:false },
@@ -1219,7 +1219,7 @@ function autoDetectColumns(headers) {
  const mapping = {};
  const h = headers.map(x => x.toUpperCase().trim());
  const find = (...patterns) => { for (const p of patterns) { const idx=h.findIndex(x=>p.test(x)); if (idx>=0) return headers[idx]; } return ""; };
- mapping.MfrPN = find(/^(MFR\s*PART|MFR\s*PN|MPN|MANUFACTURER|PART\s*NO?\.?|PART\s*NUMBER|PART\s*#|PN|MFG\s*PN)$/,/PART.*NUM/,/MFR.*PN/);
+ mapping.MfrPN = find(/^(MFR\s*PART|MFR\s*PN|MPN|MANUFACTURER|PART\s*NO?\.?|PART\s*NUMBER|PART\s*#|PN|MFG\s*PN|NEXWAH\s*PN|NEXWAH\s*PART|NPN|NEXWAH)$/,/PART.*NUM/,/MFR.*PN/,/NEXWAH/);
  mapping.Quantity = find(/^(QTY|QUANTITY|REQ|REQUIRED|COUNT|AMOUNT)$/,/QUANT/,/QTY/);
  mapping.Sets = find(/^(\d+\s*SETS?|SETS?|MULTIPLIER|MULT|NOS?\.?|NO\s*OF\s*SETS?|BOARDS?|RUNS?|COPIES)$/,/SETS?$/,/\d+\s*SET/);
  mapping.Description = find(/^(DESC|DESCRIPTION|NAME|COMPONENT|ITEM)$/,/DESC/);
@@ -1972,13 +1972,19 @@ async function runBomCheck(mapping,rows){
   try{
     const sheetRows=await sheetRead();
     const inv={};
-    sheetRows.slice(1).forEach((r,i)=>{if(r[2])inv[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};});
+    const invByLoc={};
+    sheetRows.slice(1).forEach((r,i)=>{
+      if(r[2]) inv[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};
+      if(r[5]) invByLoc[String(r[5]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||"",mpn:r[2]||""};
+    });
     let totalParts=0, inStock=0, notEnough=0, notFound=0;
     bomPendingDispatch=[];
 
     items.forEach(({pn,qty,qtyPerSet,sets,_row})=>{
       totalParts++;
-      const key=pn.toUpperCase(); const stock=inv[key];
+      const key=pn.toUpperCase();
+      // Try MPN first, then fall back to Nexwah PN (location column)
+      const stock=inv[key] || invByLoc[key];
       if(!stock){
         notFound++;
         _row.__status="NOT IN INVENTORY";_row.__stock=0;_row.__needed=qty;_row.__shortage=qty;_row.__location="";
