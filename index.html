@@ -1432,21 +1432,26 @@ function openDrawer(rowIdx,mfrPn,suppPn,supplier,desc,location,qty,lastUpdated) 
  if (qty<=0){pill.className="stock-pill empty";pill.textContent=`0 units \u2014 out of stock`;}
  else if (qty<=5){pill.className="stock-pill low";pill.textContent=`${qty} units \u2014 low stock`;}
  else{pill.className="stock-pill ok";pill.textContent=`${qty} units in stock`;}
- document.getElementById("drawerInfoRows").innerHTML=[["Mfr PN",mfrPn||"\u2014"],["Supplier PN",suppPn||"\u2014"],["Supplier",supplier||"\u2014"],["Location",location||"\u2014"],["Updated",formatDate(lastUpdated)||"\u2014"]].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("");
+ // Show location — if it's just a box, show what slot it would get
+ const hasSlot = /^[A-Za-z0-9]+-\d+$/.test(location);
+ const boxId = hasSlot ? location.replace(/-\d+$/,"").toUpperCase() : location.toUpperCase();
+ const displayLoc = hasSlot ? location : (location && LOCATIONS.find(l=>l.id===boxId) ? slotLabel(boxId, getNextSlot(boxId)) : location||"\u2014");
+ document.getElementById("drawerInfoRows").innerHTML=[["Mfr PN",mfrPn||"\u2014"],["Supplier PN",suppPn||"\u2014"],["Supplier",supplier||"\u2014"],["Location",displayLoc],["Updated",formatDate(lastUpdated)||"\u2014"]].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("");
  document.getElementById("drawerQty").value="1"; document.getElementById("drawerNotes").value="";
  const s=document.getElementById("drawerStatus"); s.style.display="none";
  const ls=document.getElementById("drawerLocationStatus"); ls.style.display="none";
- // Populate location dropdown
+ // Populate location dropdown — show next slot for each box
  const locSel = document.getElementById("drawerLocationSelect");
  locSel.innerHTML = '<option value="">— not assigned —</option>';
  LOCATIONS.forEach(loc => {
    const opt = document.createElement('option');
    opt.value = loc.id;
-   opt.textContent = loc.id + (loc.name ? ' · ' + loc.name : '');
-   if (loc.id === location) opt.selected = true;
+   const next = getNextSlot(loc.id);
+   opt.textContent = loc.id + (loc.name ? ' · ' + loc.name : '') + ' — next: ' + slotLabel(loc.id, next);
+   // Select the box that matches the current location
+   if (loc.id === boxId) opt.selected = true;
    locSel.appendChild(opt);
  });
- // Allow typing a custom location too
  setDrawerAction("Receive");
  document.getElementById("drawerOverlay").classList.add("open");
  document.getElementById("invDrawer").classList.add("open");
@@ -1455,16 +1460,17 @@ function openDrawer(rowIdx,mfrPn,suppPn,supplier,desc,location,qty,lastUpdated) 
 
 async function saveDrawerLocation() {
  if (!drawerRowData) return;
- const newLocation = document.getElementById("drawerLocationSelect").value;
+ const boxId = document.getElementById("drawerLocationSelect").value;
  const statusEl = document.getElementById("drawerLocationStatus");
  statusEl.style.display="block"; statusEl.innerHTML='<span class="spinner"></span>Saving\u2026'; statusEl.className="status-bar loading";
  try {
-   await sheetUpdateLocation(drawerRowData.rowIdx, newLocation);
-   drawerRowData.location = newLocation;
-   // Update the info row display
-   document.getElementById("drawerInfoRows").innerHTML=[["Mfr PN",drawerRowData.mfrPn||"\u2014"],["Supplier PN",drawerRowData.suppPn||"\u2014"],["Supplier",drawerRowData.supplier||"\u2014"],["Location",newLocation||"\u2014"],["Updated",formatDate(drawerRowData.lastUpdated)||"\u2014"]].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("");
-   statusEl.innerHTML=`\u2713 Location saved: ${newLocation||"(none)"}`;statusEl.className="status-bar ok";
-   toast("Location updated: " + (newLocation||"cleared"));
+   // Always save with slot number
+   const finalLocation = boxId ? claimNextSlot(boxId) : "";
+   await sheetUpdateLocation(drawerRowData.rowIdx, finalLocation);
+   drawerRowData.location = finalLocation;
+   document.getElementById("drawerInfoRows").innerHTML=[["Mfr PN",drawerRowData.mfrPn||"\u2014"],["Supplier PN",drawerRowData.suppPn||"\u2014"],["Supplier",drawerRowData.supplier||"\u2014"],["Location",finalLocation||"\u2014"],["Updated",formatDate(drawerRowData.lastUpdated)||"\u2014"]].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("");
+   statusEl.innerHTML=`\u2713 Location saved: ${finalLocation||"(none)"}`;statusEl.className="status-bar ok";
+   toast("Location updated: " + (finalLocation||"cleared"));
    _invCache = null;
    renderInventory();
  } catch(e) {
