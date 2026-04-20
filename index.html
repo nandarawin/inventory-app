@@ -1997,20 +1997,17 @@ async function runBomCheck(mapping,rows){
     // Show compact summary only
     document.getElementById("bomResults").innerHTML=`<div class="card">
       <div class="card-title">Check Complete${setsUsed?' <span style="font-size:11px;color:var(--muted);font-weight:400">(qty \u00d7 sets)</span>':''}</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px">
-        <div style="background:var(--success-bg);border:1px solid var(--success-border);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-family:var(--mono);font-size:24px;font-weight:600;color:var(--success)">${inStock}</div>
-          <div style="font-size:11px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:0.5px">In Stock</div>
-        </div>
-        <div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-family:var(--mono);font-size:24px;font-weight:600;color:var(--warn)">${notEnough}</div>
-          <div style="font-size:11px;font-weight:600;color:var(--warn);text-transform:uppercase;letter-spacing:0.5px">Not Enough</div>
-        </div>
-        <div style="background:var(--error-bg);border:1px solid var(--error-border);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-family:var(--mono);font-size:24px;font-weight:600;color:var(--error)">${notFound}</div>
-          <div style="font-size:11px;font-weight:600;color:var(--error);text-transform:uppercase;letter-spacing:0.5px">Not Found</div>
-        </div>
-      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Status</th>
+          <th style="text-align:right;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Parts</th>
+        </tr></thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 12px;color:var(--text)">In Stock</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${inStock}</td></tr>
+          <tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 12px;color:var(--text)">Not Enough</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${notEnough}</td></tr>
+          <tr><td style="padding:9px 12px;color:var(--text)">Not Found</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${notFound}</td></tr>
+        </tbody>
+      </table>
     </div>`;
 
     if(bomPendingDispatch.length>0){
