@@ -287,7 +287,6 @@
  <button class="nav-btn" onclick="showPage('location',this)">Location</button>
  <button class="nav-btn" onclick="showPage('marketprice',this)">Market Price</button>
  <button class="nav-btn" onclick="showPage('scanhistory',this)">Scan History</button>
- <button class="nav-btn" onclick="showPage('projects',this)">Projects</button>
  <button class="nav-btn" onclick="showPage('settings',this)">Settings</button>
 </div>
 
@@ -455,6 +454,7 @@
  <button class="loc-filter-btn active" onclick="setLocFilter('all',this)">All</button>
  <button class="loc-filter-btn" onclick="setLocFilter('PB',this)">PB</button>
  <button class="loc-filter-btn" onclick="setLocFilter('T',this)">T</button>
+ <button class="loc-filter-btn" onclick="setLocFilter('TR',this)">TR</button>
  <button class="loc-filter-btn" onclick="setLocFilter('LB',this)">LB</button>
  <button class="loc-filter-btn" onclick="setLocFilter('DR',this)">DR</button>
  <button class="loc-filter-btn" onclick="setLocFilter('PD',this)">PD</button>
@@ -546,46 +546,6 @@
  </div>
 
  <!-- SCAN HISTORY -->
- 
- <!-- PROJECTS / ORDERS -->
- <div id="page-projects" class="page">
-   <div class="card" style="margin-bottom:14px">
-     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
-       <div>
-         <div style="font-size:16px;font-weight:700;color:var(--text)">Projects &amp; Orders</div>
-       </div>
-       <div style="display:flex;gap:8px">
-         <button class="btn btn-primary btn-sm" onclick="openOrderDrawer(null)">+ New Order</button>
-         <button class="btn btn-secondary btn-sm" onclick="exportOrdersCSV()">Export CSV</button>
-       </div>
-     </div>
-     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-       <input type="text" id="projSearch" placeholder="Search company, order ID, description…" oninput="renderOrders()"
-         style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:var(--sans);outline:none" />
-     </div>
-     <div class="proj-filter-row" style="margin-top:10px;margin-bottom:0">
-       <button class="proj-filter-btn active" onclick="setProjFilter('all',this)">All</button>
-       <button class="proj-filter-btn" onclick="setProjFilter('new',this)">New</button>
-       <button class="proj-filter-btn" onclick="setProjFilter('pending',this)">Pending</button>
-       <button class="proj-filter-btn" onclick="setProjFilter('progress',this)">In Progress</button>
-       <button class="proj-filter-btn" onclick="setProjFilter('completed',this)">Completed</button>
-       <button class="proj-filter-btn" onclick="setProjFilter('cancelled',this)">Cancelled</button>
-     </div>
-   </div>
-   <div id="projLoadStatus" class="status-bar" style="display:none;margin-bottom:12px"></div>
-   <div class="table-wrap" id="ordersTableWrap">
-     <table>
-       <thead><tr>
-         <th>Order ID</th><th>Company</th><th>Contact</th>
-         <th>Description</th><th>Status</th><th>Tracking No.</th><th>Date</th><th>Actions</th>
-       </tr></thead>
-       <tbody id="ordersTableBody">
-         <tr><td colspan="8" class="empty-state"><span class="spinner"></span> Loading orders…</td></tr>
-       </tbody>
-     </table>
-   </div>
- </div>
-
  <div id="page-scanhistory" class="page">
  <div class="card">
  <div class="card-title">Scan History</div>
@@ -933,133 +893,6 @@
 <!-- IMAGE ZOOM MODAL -->
 <div id="imgModal" onclick="this.classList.remove('open')">
  <img id="imgModalSrc" src="" alt="Scan image" />
-</div>
-
-
-<!-- ORDER DETAIL DRAWER -->
-<div class="inv-drawer-overlay" id="orderDrawerOverlay" onclick="closeOrderDrawer()"></div>
-<div class="inv-drawer" id="orderDrawer" style="width:460px">
-  <div class="inv-drawer-header">
-    <div style="flex:1;min-width:0">
-      <div class="inv-drawer-pn" id="orderDrawerTitle">New Order</div>
-      <div class="inv-drawer-desc" id="orderDrawerSub">Fill in the details below</div>
-    </div>
-    <button class="inv-drawer-close" onclick="closeOrderDrawer()">&#x2715;</button>
-  </div>
-  <div class="inv-drawer-body">
-    <input type="hidden" id="orderDrawerRowIdx" value="" />
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="field">
-        <label>Order ID</label>
-        <input type="text" id="orderIdInput" placeholder="e.g. ORD-001" style="font-family:var(--mono);font-weight:600" />
-      </div>
-      <div class="field">
-        <label>Status</label>
-        <select id="orderStatusInput" style="font-family:var(--sans);font-size:13px">
-          <option value="new">New</option>
-          <option value="pending">Pending</option>
-          <option value="progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="field">
-        <label>Company / Customer *</label>
-        <input type="text" id="orderCompanyInput" placeholder="e.g. Acme Pte Ltd" />
-      </div>
-      <div class="field">
-        <label>Contact Person</label>
-        <input type="text" id="orderContactInput" placeholder="e.g. John Tan" />
-      </div>
-    </div>
-
-    <div class="field" style="margin-bottom:12px">
-      <label>Order Description *</label>
-      <input type="text" id="orderDescInput" placeholder="e.g. 500x NW-BOM001 PCBA, Rev3" />
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="field">
-        <label>Quantity / Amount</label>
-        <input type="text" id="orderQtyInput" placeholder="e.g. 500 pcs" style="font-family:var(--mono)" />
-      </div>
-      <div class="field">
-        <label>Order Date</label>
-        <input type="date" id="orderDateInput" style="font-family:var(--mono);font-size:12px" />
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="field">
-        <label>Due / Delivery Date</label>
-        <input type="date" id="orderDueDateInput" style="font-family:var(--mono);font-size:12px" />
-      </div>
-      <div class="field">
-        <label>Value (SGD)</label>
-        <input type="text" id="orderValueInput" placeholder="e.g. 1200.00" style="font-family:var(--mono)" />
-      </div>
-    </div>
-
-    <div class="field" style="margin-bottom:12px">
-      <label>Tracking Number</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="orderTrackingInput" placeholder="e.g. JT123456789SG" style="font-family:var(--mono);flex:1" />
-        <button class="btn btn-secondary btn-sm" onclick="openTrackModal(document.getElementById('orderTrackingInput').value.trim())" style="white-space:nowrap">Track ↗</button>
-      </div>
-    </div>
-
-    <div class="field" style="margin-bottom:18px">
-      <label>Notes / Remarks</label>
-      <textarea id="orderNotesInput" rows="3" placeholder="Additional notes, linked BOM, special requirements…"
-        style="padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-family:var(--sans);font-size:13px;resize:vertical;outline:none;width:100%;color:var(--text);background:var(--surface);line-height:1.5"></textarea>
-    </div>
-
-    <div style="display:flex;gap:10px">
-      <button class="btn btn-primary" style="flex:1" id="orderSaveBtn" onclick="saveOrder()">Save Order</button>
-      <button class="btn btn-danger btn-sm" id="orderDeleteBtn" onclick="deleteOrder()" style="display:none">Delete</button>
-    </div>
-    <div id="orderDrawerStatus" class="status-bar" style="margin-top:10px;display:none"></div>
-  </div>
-</div>
-
-<!-- TRACKING LOOKUP MODAL -->
-<div id="trackModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeTrackModal()">
- <div style="background:var(--surface);border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
-  <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:14px 14px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
-   <div>
-    <div style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--accent)" id="trackModalNum">—</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:3px" id="trackModalCarrierLabel">Detecting carrier…</div>
-   </div>
-   <button onclick="closeTrackModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:2px 6px;border-radius:6px;line-height:1">&#x2715;</button>
-  </div>
-  <div style="padding:20px 24px">
-   <!-- Carrier card -->
-   <div id="trackCarrierCard" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);margin-bottom:16px">
-    <div id="trackCarrierIcon" style="display:none"></div>
-    <div style="flex:1">
-     <div id="trackCarrierName" style="font-size:14px;font-weight:700;color:var(--text)"></div>
-     <div id="trackCarrierDesc" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
-    </div>
-    <a id="trackCarrierBtn" href="#" target="_blank" rel="noopener"
-     style="background:var(--accent);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;font-family:var(--sans)">
-     Track ↗
-    </a>
-   </div>
-   <!-- Universal fallback -->
-   <div style="border-top:1px solid var(--border);padding-top:14px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Also try universal trackers</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-     <a id="trackAfterShip" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">AfterShip ↗</a>
-     <a id="trackParcelMonitor" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Parcel Monitor ↗</a>
-     <a id="track17track" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">17track ↗</a>
-    </div>
-   </div>
-  </div>
- </div>
 </div>
 
 <div id="toast"></div>
@@ -1490,6 +1323,10 @@ const LOCATIONS = [
   makeLoc('BC01', 'Glass Display, Bottom Cabinet Near Entrance Door', 'BC'),
   makeLoc('BC01-01', 'Display Glass, Bottom Cabinet Near Entrance Door', 'BC'),
   makeLoc('PCB', 'Printed Circuit Board', 'PCB'), makeLoc('PCB Board', '', 'PCB'),
+  ...locRange('TR', 1, 10, {
+    TR01:'电阻料盘 RES0603', TR02:'电容料盘', TR03:'芯片料盘', TR04:'RES0402',
+    TR05:'CHIP', TR06:'芯片料盘'
+  }),
   makeLoc('TRBX01', 'CAP0402', 'TRBX'), makeLoc('BX-TRCAP0402-01', 'CAP0402', 'BX'),
   makeLoc('STENCIL', 'Stencil 钢网', 'STENCIL'),
   makeLoc('SOLDERING STATION', 'Solder Wire', 'SOLDERING'),
@@ -1674,7 +1511,7 @@ function renderLocations() {
  const search = normalizeLocText(searchRaw);
  const grid = document.getElementById('locGrid');
  if (!grid) return;
- const mainTypes = ['PB','T','LB','DR','PD','SD','BX','CN','SF'];
+ const mainTypes = ['PB','T','TR','LB','DR','PD','SD','BX','CN','SF'];
  const filtered = LOCATIONS.filter(l => {
    const locType = l.type || ((l.id.match(/^[A-Z]+/) || ['OTHER'])[0]);
    const matchFilter = locFilter === 'all'
@@ -1948,7 +1785,6 @@ function showPage(name, btn) {
  document.getElementById("page-"+name).classList.add("active");
  if (btn) btn.classList.add("active");
  if (name==="inventory") { if (_invCache) _renderInvRows(document.getElementById("invTableBody")); else renderInventory(); }
- if (name==="projects") { renderOrders(); }
  if (name==="scanhistory") renderScanHistory();
  if (name==="settings") loadSettingsPage();
  if (name==="marketprice") {
@@ -2656,20 +2492,7 @@ function removeDistKey(dist) {
 
 // ── PRINT LABEL ────────────────────────────────────────────
 function printLabel(mfrPn,suppPn,desc,location,qty){document.getElementById("lblMfrPn").textContent=mfrPn||"";document.getElementById("lblSuppPn").textContent=suppPn||"";document.getElementById("lblDesc").textContent=desc||"";document.getElementById("lblLoc").textContent=location||"—";document.getElementById("lblQty").textContent="QTY: "+(qty||0);document.getElementById("lblDate").textContent=new Date().toLocaleDateString();document.getElementById("printLocInput").value=location||"";document.getElementById("printQtyInput").value=qty||"";document.getElementById("printModal").style.display="flex";}
-function doPrint(){const printArea=document.getElementById("labelPreview").outerHTML;const win=window.open("","_blank","width=400,height=350");win.document.write(`<!DOCTYPE html><html><head><title>Label</title><style>body{font-family:'IBM Plex Mono',monospace;margin:20px;background:#fff}@media print{body{margin:0}}
-
- /* ── PROJECTS / ORDERS TAB ── */
- .proj-filter-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
- .proj-filter-btn { font-size:12px; font-weight:500; padding:6px 14px; border:1px solid var(--border2); border-radius:20px; background:var(--surface); color:var(--muted); cursor:pointer; transition:all .15s; white-space:nowrap; font-family:var(--sans); }
- .proj-filter-btn:hover, .proj-filter-btn.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
- .order-status { display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:600; font-family:var(--mono); white-space:nowrap; }
- .order-status.new       { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
- .order-status.progress  { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
- .order-status.completed { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
- .order-status.cancelled { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; }
- .order-status.pending   { background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
-
-</style><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet"></head><body>${printArea}<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}<\/script></body></html>`);}
+function doPrint(){const printArea=document.getElementById("labelPreview").outerHTML;const win=window.open("","_blank","width=400,height=350");win.document.write(`<!DOCTYPE html><html><head><title>Label</title><style>body{font-family:'IBM Plex Mono',monospace;margin:20px;background:#fff}@media print{body{margin:0}}</style><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet"></head><body>${printArea}<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}<\/script></body></html>`);}
 
 // ── CSV / BOM ──────────────────────────────────────────────
 async function exportInventoryCSV(){try{const rows=await sheetRead();const csv=rows.map(r=>r.map(c=>`"${(c||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");downloadFile("nexwah_inventory_"+todayStr()+".csv","text/csv",csv);}catch(e){toast("Export failed: "+e.message);}}
@@ -2780,311 +2603,6 @@ function toast(msg){const el=document.getElementById("toast");el.textContent=msg
 const mpQtyStyle = document.createElement('style');
 mpQtyStyle.textContent = '.mp-qty-btn.active-qty { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }';
 document.head.appendChild(mpQtyStyle);
-
-
-// ── PROJECTS / ORDERS ─────────────────────────────────────
-const ORDERS_SHEET = "Projects";
-let _ordersCache = null;
-let _projFilter  = "all";
-
-const ORDER_COLS = {
-  date:0, orderId:1, company:2, contact:3,
-  description:4, qty:5, status:6, dueDate:7, value:8, notes:9, tracking:10
-};
-
-function setProjFilter(f, btn) {
-  _projFilter = f;
-  document.querySelectorAll(".proj-filter-btn").forEach(b => b.classList.remove("active"));
-  if (btn) btn.classList.add("active");
-  renderOrders();
-}
-
-async function loadOrders(force) {
-  if (_ordersCache && !force) return _ordersCache;
-  const url = `${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(ORDERS_SHEET)}`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  _ordersCache = Array.isArray(data) ? data : [];
-  return _ordersCache;
-}
-
-async function renderOrders() {
-  const tbody = document.getElementById("ordersTableBody");
-  const statusEl = document.getElementById("projLoadStatus");
-  if (!tbody) return;
-
-  if (!_ordersCache) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><span class="spinner"></span> Loading…</td></tr>`;
-  }
-
-  try {
-    const rows = await loadOrders();
-    const search = (document.getElementById("projSearch")?.value || "").trim().toLowerCase();
-    const C = ORDER_COLS;
-
-    let data = rows.slice(1).map((r, i) => ({ r, origIdx: i + 2 })).filter(({ r }) => {
-      if (!r[C.orderId] && !r[C.company]) return false;
-      const status = (r[C.status] || "new").toLowerCase();
-      const matchFilter = _projFilter === "all" || status === _projFilter;
-      const matchSearch = !search || [r[C.orderId],r[C.company],r[C.contact],r[C.description],r[C.notes],r[C.tracking]]
-        .some(v => (v||"").toLowerCase().includes(search));
-      return matchFilter && matchSearch;
-    });
-
-    // Sort newest first
-    data.sort((a,b) => (b.r[C.date]||"").localeCompare(a.r[C.date]||""));
-
-    if (!data.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${search ? "No orders match your search." : "No orders yet — click + New Order to add one."}</td></tr>`;
-      if (statusEl) statusEl.style.display = "none";
-      return;
-    }
-
-    if (statusEl) statusEl.style.display = "none";
-
-    tbody.innerHTML = data.map(({ r, origIdx }) => {
-      const status   = (r[C.status] || "new").toLowerCase();
-      const statusLabels = { new:"New", pending:"Pending", progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
-      const orderId  = escHtml(r[C.orderId] || "—");
-      const company  = escHtml(r[C.company]  || "—");
-      const contact  = escHtml(r[C.contact]  || "");
-      const desc     = escHtml(r[C.description] || "—");
-      const tracking = escHtml(r[C.tracking]  || "");
-      const dateStr  = r[C.date] ? formatDate(r[C.date]) : "—";
-      return `<tr class="inv-row-clickable" onclick="openOrderDrawer(${origIdx})">
-        <td class="mono" style="font-weight:600">${orderId}</td>
-        <td style="font-weight:500">${company}</td>
-        <td style="color:var(--muted);font-size:12px">${contact}</td>
-        <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</td>
-        <td><span class="order-status ${status}">${statusLabels[status]||status}</span></td>
-        <td class="mono" style="font-size:12px">${tracking ? `<span onclick="openTrackModal('${tracking}')" style="color:var(--accent);cursor:pointer;text-decoration:underline dotted">${tracking}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
-        <td style="color:var(--muted);font-size:12px">${dateStr}</td>
-        <td onclick="event.stopPropagation()">
-          <button class="btn btn-secondary btn-sm" onclick="openOrderDrawer(${origIdx})">Edit</button>
-        </td>
-      </tr>`;
-    }).join("");
-
-  } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--error)">Could not load orders: ${e.message}</td></tr>`;
-  }
-}
-
-function openOrderDrawer(rowIdx) {
-  const isNew = rowIdx === null;
-  document.getElementById("orderDrawerTitle").textContent = isNew ? "New Order" : "Edit Order";
-  document.getElementById("orderDrawerSub").textContent   = isNew ? "Fill in the details below" : "Update order details";
-  document.getElementById("orderDrawerRowIdx").value = rowIdx || "";
-  document.getElementById("orderDeleteBtn").style.display = isNew ? "none" : "";
-  document.getElementById("orderDrawerStatus").style.display = "none";
-
-  if (isNew) {
-    // Auto-generate next order ID
-    const existing = (_ordersCache || []).slice(1)
-      .map(r => r[ORDER_COLS.orderId] || "")
-      .filter(id => /^ORD-\d+$/.test(id))
-      .map(id => parseInt(id.replace("ORD-","")))
-      .filter(n => !isNaN(n));
-    const nextNum = existing.length ? Math.max(...existing) + 1 : 1;
-    document.getElementById("orderIdInput").value      = "ORD-" + String(nextNum).padStart(3,"0");
-    document.getElementById("orderStatusInput").value  = "new";
-    document.getElementById("orderCompanyInput").value = "";
-    document.getElementById("orderContactInput").value = "";
-    document.getElementById("orderDescInput").value    = "";
-    document.getElementById("orderQtyInput").value     = "";
-    document.getElementById("orderDateInput").value    = todayStr();
-    document.getElementById("orderDueDateInput").value = "";
-    document.getElementById("orderValueInput").value   = "";
-    document.getElementById("orderNotesInput").value    = "";
-    document.getElementById("orderTrackingInput").value = "";
-  } else {
-    const rows = _ordersCache || [];
-    const r = rows[rowIdx - 1];
-    if (!r) return;
-    const C = ORDER_COLS;
-    document.getElementById("orderIdInput").value      = r[C.orderId]     || "";
-    document.getElementById("orderStatusInput").value  = (r[C.status]     || "new").toLowerCase();
-    document.getElementById("orderCompanyInput").value = r[C.company]     || "";
-    document.getElementById("orderContactInput").value = r[C.contact]     || "";
-    document.getElementById("orderDescInput").value    = r[C.description] || "";
-    document.getElementById("orderQtyInput").value     = r[C.qty]         || "";
-    document.getElementById("orderDateInput").value    = r[C.date]        || "";
-    document.getElementById("orderDueDateInput").value = r[C.dueDate]     || "";
-    document.getElementById("orderValueInput").value   = r[C.value]       || "";
-    document.getElementById("orderNotesInput").value    = r[C.notes]       || "";
-    document.getElementById("orderTrackingInput").value = r[C.tracking]    || "";
-  }
-
-  document.getElementById("orderDrawerOverlay").classList.add("open");
-  document.getElementById("orderDrawer").classList.add("open");
-  setTimeout(() => document.getElementById("orderCompanyInput").focus(), 300);
-}
-
-function closeOrderDrawer() {
-  document.getElementById("orderDrawerOverlay").classList.remove("open");
-  document.getElementById("orderDrawer").classList.remove("open");
-}
-
-async function saveOrder() {
-  const statusEl = document.getElementById("orderDrawerStatus");
-  const rowIdx   = document.getElementById("orderDrawerRowIdx").value;
-  const isNew    = !rowIdx;
-
-  const company = document.getElementById("orderCompanyInput").value.trim();
-  const desc    = document.getElementById("orderDescInput").value.trim();
-  if (!company) { statusEl.style.display="block"; statusEl.innerHTML="Company name is required."; statusEl.className="status-bar err"; return; }
-  if (!desc)    { statusEl.style.display="block"; statusEl.innerHTML="Description is required."; statusEl.className="status-bar err"; return; }
-
-  statusEl.style.display="block"; statusEl.innerHTML='<span class="spinner"></span>Saving…'; statusEl.className="status-bar loading";
-
-  const row = [
-    document.getElementById("orderDateInput").value    || todayStr(),
-    document.getElementById("orderIdInput").value.trim(),
-    company,
-    document.getElementById("orderContactInput").value.trim(),
-    desc,
-    document.getElementById("orderQtyInput").value.trim(),
-    document.getElementById("orderStatusInput").value,
-    document.getElementById("orderDueDateInput").value,
-    document.getElementById("orderValueInput").value.trim(),
-    document.getElementById("orderNotesInput").value.trim(),
-    document.getElementById("orderTrackingInput").value.trim(),
-  ];
-
-  try {
-    if (isNew) {
-      const url = `${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(ORDERS_SHEET)}&row=${encodeURIComponent(JSON.stringify(row))}`;
-      const res = await (await fetch(url)).text();
-      if (res.trim() !== "ok") throw new Error(res);
-      toast(`Order saved: ${row[1] || company}`);
-    } else {
-      // Update row via full row replacement
-      const url = `${APPS_SCRIPT_URL}?action=updateRow&sheet=${encodeURIComponent(ORDERS_SHEET)}&rowIndex=${rowIdx}&row=${encodeURIComponent(JSON.stringify(row))}`;
-      const res = await (await fetch(url)).text();
-      // Fallback: if updateRow not supported, update status + date only
-      if (res.trim() !== "ok") {
-        await fetch(`${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(ORDERS_SHEET)}&rowIndex=${rowIdx}&qty=${encodeURIComponent(row[6])}&date=${encodeURIComponent(row[0])}`);
-      }
-      toast(`Updated: ${row[1] || company}`);
-    }
-    _ordersCache = null;
-    statusEl.innerHTML = "Saved successfully."; statusEl.className = "status-bar ok";
-    setTimeout(closeOrderDrawer, 700);
-    renderOrders();
-  } catch(e) {
-    statusEl.innerHTML = "Error: " + e.message; statusEl.className = "status-bar err";
-  }
-}
-
-async function deleteOrder() {
-  const rowIdx = document.getElementById("orderDrawerRowIdx").value;
-  const company = document.getElementById("orderCompanyInput").value || "this order";
-  if (!rowIdx || !confirm(`Delete order for "${company}"? This cannot be undone.`)) return;
-  const statusEl = document.getElementById("orderDrawerStatus");
-  statusEl.style.display="block"; statusEl.innerHTML='<span class="spinner"></span>Deleting…'; statusEl.className="status-bar loading";
-  try {
-    const url = `${APPS_SCRIPT_URL}?action=deleteRow&sheet=${encodeURIComponent(ORDERS_SHEET)}&rowIndex=${rowIdx}`;
-    await fetch(url);
-    _ordersCache = null;
-    toast("Order deleted.");
-    closeOrderDrawer();
-    renderOrders();
-  } catch(e) { statusEl.innerHTML = "Error: " + e.message; statusEl.className = "status-bar err"; }
-}
-
-async function exportOrdersCSV() {
-  try {
-    const rows = await loadOrders(true);
-    if (!rows.length) { toast("No orders to export."); return; }
-    const csv = rows.map(r => r.map(c => `"${(c||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");
-    downloadFile("nexwah_orders_" + todayStr() + ".csv", "text/csv", csv);
-    toast("Orders exported.");
-  } catch(e) { toast("Export failed: " + e.message); }
-}
-
-
-// ── TRACKING LOOKUP ────────────────────────────────────────
-function detectCarrier(raw) {
-  const t = (raw || "").toUpperCase().replace(/\s+/g, "");
-  if (!t) return null;
-
-  // UPS
-  if (/^1Z[A-Z0-9]{16}$/.test(t))
-    return { name:"UPS", icon:"", desc:"United Parcel Service",
-             url:`https://www.ups.com/track?tracknum=${t}&loc=en_SG` };
-  // FedEx
-  if (/^\d{12}$/.test(t) || /^\d{15}$/.test(t) || /^\d{20}$/.test(t))
-    return { name:"FedEx", icon:"", desc:"Federal Express",
-             url:`https://www.fedex.com/fedextrack/?trknbr=${t}` };
-  // Standard postal (SingPost, PostNL, Royal Mail etc — XX000000000XX format)
-  if (/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(t)) {
-    const suffix = t.slice(-2);
-    const carriers = { SG:"SingPost", GB:"Royal Mail", NL:"PostNL", DE:"Deutsche Post",
-                       CN:"China Post / EMS", US:"USPS", MY:"Pos Malaysia", TH:"Thailand Post" };
-    const name = carriers[suffix] || "Postal Service (" + suffix + ")";
-    const urls = { SG:`https://www.singpost.com/track-items#${t}`,
-                   GB:`https://www.royalmail.com/track-your-item#/tracking-results/${t}`,
-                   CN:`https://www.ems.com.cn/queryList?mailNo=${t}` };
-    return { name, icon:"", desc:"International postal tracking",
-             url: urls[suffix] || `https://track.aftership.com/${t}` };
-  }
-  // J&T Express
-  if (/^JT/i.test(t))
-    return { name:"J&T Express", icon:"", desc:"J&T Express (SEA)",
-             url:`https://www.jtexpress.sg/index/query/gzquery.html?bills=${t}` };
-  // Ninja Van
-  if (/^(NNVSG|NNVMY|NNVID|NNVPH|NNVTH|NNVVN|NV[A-Z]{2})/i.test(t))
-    return { name:"Ninja Van", icon:"", desc:"Ninja Van (SEA)",
-             url:`https://www.ninjavan.co/en-sg/tracking?id=${t}` };
-  // DHL Express
-  if (/^\d{10}$/.test(t) || /^[0-9]{9,10}$/.test(t))
-    return { name:"DHL Express", icon:"", desc:"DHL Express Worldwide",
-             url:`https://www.dhl.com/sg-en/home/tracking.html?tracking-id=${t}&submit=1` };
-  // DHL eCommerce / Packet
-  if (/^(GM|LX|RX|SX|CX)[A-Z0-9]+/i.test(t))
-    return { name:"DHL eCommerce", icon:"", desc:"DHL eCommerce",
-             url:`https://webtrack.dhlglobalmail.com/?trackingnumber=${t}` };
-  // SF Express
-  if (/^SF\d+/i.test(t) || /^\d{15}$/.test(t))
-    return { name:"SF Express", icon:"", desc:"SF Express",
-             url:`https://www.sf-international.com/sg/en/dynamic_function/waybill/#search/bill_numbers=${t}` };
-  // Qxpress / Qdelivery
-  if (/^Q[A-Z0-9]{10,}/i.test(t))
-    return { name:"Qxpress", icon:"", desc:"Qxpress Singapore",
-             url:`https://www.qxpress.com/track?trackingNumber=${t}` };
-  // Aramex
-  if (/^\d{11}$/.test(t))
-    return { name:"Aramex", icon:"", desc:"Aramex International",
-             url:`https://www.aramex.com/track/results?ShipmentNumber=${t}` };
-  // TNT
-  if (/^[A-Z]{2}\d{8}$/i.test(t))
-    return { name:"TNT / FedEx", icon:"", desc:"TNT (now FedEx)",
-             url:`https://www.tnt.com/express/en_sg/site/tracking.html?searchType=CON&cons=${t}` };
-
-  // Unknown — use AfterShip universal
-  return { name:"Unknown carrier", icon:"", desc:"Carrier not detected — using universal tracker",
-           url:`https://track.aftership.com/${t}` };
-}
-
-function openTrackModal(trackingNum) {
-  if (!trackingNum || trackingNum === "—") return;
-  const carrier = detectCarrier(trackingNum) || { name:"Unknown", icon:"", desc:"", url:`https://track.aftership.com/${trackingNum}` };
-  document.getElementById("trackModalNum").textContent = trackingNum;
-  document.getElementById("trackModalCarrierLabel").textContent = "Carrier detected";
-  document.getElementById("trackCarrierIcon").textContent = carrier.icon;
-  document.getElementById("trackCarrierName").textContent = carrier.name;
-  document.getElementById("trackCarrierDesc").textContent = carrier.desc;
-  document.getElementById("trackCarrierBtn").href = carrier.url;
-  const enc = encodeURIComponent(trackingNum);
-  document.getElementById("trackAfterShip").href    = `https://track.aftership.com/${enc}`;
-  document.getElementById("trackParcelMonitor").href = `https://www.parcelmonitor.com/track-singapore/?id=${enc}`;
-  document.getElementById("track17track").href       = `https://t.17track.net/en#nums=${enc}`;
-  document.getElementById("trackModalOverlay").style.display = "flex";
-}
-function closeTrackModal() {
-  document.getElementById("trackModalOverlay").style.display = "none";
-}
-
 </script>
 </body>
 </html>
