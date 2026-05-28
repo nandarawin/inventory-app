@@ -545,6 +545,44 @@
    </div>
  </div>
 
+
+ <!-- PROJECTS / ORDERS -->
+ <div id="page-projects" class="page">
+   <div class="card" style="margin-bottom:14px">
+     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+       <div><div style="font-size:16px;font-weight:700;color:var(--text)">Projects &amp; Orders</div></div>
+       <div style="display:flex;gap:8px">
+         <button class="btn btn-primary btn-sm" onclick="openOrderDrawer(null)">+ New Order</button>
+         <button class="btn btn-secondary btn-sm" onclick="exportOrdersCSV()">Export CSV</button>
+       </div>
+     </div>
+     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+       <input type="text" id="projSearch" placeholder="Search company, order ID, description…" oninput="renderOrders()"
+         style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:var(--sans);outline:none" />
+     </div>
+     <div class="proj-filter-row" style="margin-top:10px;margin-bottom:0">
+       <button class="proj-filter-btn active" onclick="setProjFilter('all',this)">All</button>
+       <button class="proj-filter-btn" onclick="setProjFilter('new',this)">New</button>
+       <button class="proj-filter-btn" onclick="setProjFilter('pending',this)">Pending</button>
+       <button class="proj-filter-btn" onclick="setProjFilter('progress',this)">In Progress</button>
+       <button class="proj-filter-btn" onclick="setProjFilter('completed',this)">Completed</button>
+       <button class="proj-filter-btn" onclick="setProjFilter('cancelled',this)">Cancelled</button>
+     </div>
+   </div>
+   <div id="projLoadStatus" class="status-bar" style="display:none;margin-bottom:12px"></div>
+   <div class="table-wrap" id="ordersTableWrap">
+     <table>
+       <thead><tr>
+         <th>Order ID</th><th>Company</th><th>Contact</th>
+         <th>Description</th><th>Status</th><th>Tracking No.</th><th>Date</th><th>Actions</th>
+       </tr></thead>
+       <tbody id="ordersTableBody">
+         <tr><td colspan="8" class="empty-state"><span class="spinner"></span> Loading orders…</td></tr>
+       </tbody>
+     </table>
+   </div>
+ </div>
+
  <!-- SCAN HISTORY -->
  <div id="page-scanhistory" class="page">
  <div class="card">
@@ -610,19 +648,7 @@
      </div>
    </div>
 
-   <!-- LCSC -->
-   <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
-     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-       <div style="font-size:13px;font-weight:600;color:var(--text)">LCSC</div>
-       <div id="lcscKeyBadge" style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:var(--mono)">not set</div>
-     </div>
-     <div class="field"><label>API Key</label><input type="password" id="settingsLcscKey" placeholder="LCSC API key" style="font-family:var(--mono);font-size:12px" /></div>
-     <div class="field" style="margin-top:10px"><label>API Secret</label><input type="password" id="settingsLcscSecret" placeholder="LCSC API secret (for HMAC signing)" style="font-family:var(--mono);font-size:12px" /></div>
-     <div class="btn-row" style="margin-top:10px">
-       <button class="btn btn-primary btn-sm" onclick="saveDistKey('lcsc')">Save</button>
-       <button class="btn btn-danger btn-sm" onclick="removeDistKey('lcsc')">Remove</button>
-     </div>
-   </div>
+
  </div>
  <div id="distKeyMsg" class="status-bar" style="margin-top:12px;display:none"></div>
  </div>
@@ -895,6 +921,92 @@
  <img id="imgModalSrc" src="" alt="Scan image" />
 </div>
 
+
+<!-- ORDER DETAIL DRAWER -->
+<div class="inv-drawer-overlay" id="orderDrawerOverlay" onclick="closeOrderDrawer()"></div>
+<div class="inv-drawer" id="orderDrawer" style="width:460px">
+  <div class="inv-drawer-header">
+    <div style="flex:1;min-width:0">
+      <div class="inv-drawer-pn" id="orderDrawerTitle">New Order</div>
+      <div class="inv-drawer-desc" id="orderDrawerSub">Fill in the details below</div>
+    </div>
+    <button class="inv-drawer-close" onclick="closeOrderDrawer()">&#x2715;</button>
+  </div>
+  <div class="inv-drawer-body">
+    <input type="hidden" id="orderDrawerRowIdx" value="" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="field"><label>Order ID</label><input type="text" id="orderIdInput" placeholder="e.g. ORD-001" style="font-family:var(--mono);font-weight:600" /></div>
+      <div class="field"><label>Status</label>
+        <select id="orderStatusInput" style="font-family:var(--sans);font-size:13px">
+          <option value="new">New</option><option value="pending">Pending</option>
+          <option value="progress">In Progress</option><option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="field"><label>Company / Customer *</label><input type="text" id="orderCompanyInput" placeholder="e.g. Acme Pte Ltd" /></div>
+      <div class="field"><label>Contact Person</label><input type="text" id="orderContactInput" placeholder="e.g. John Tan" /></div>
+    </div>
+    <div class="field" style="margin-bottom:12px"><label>Order Description *</label><input type="text" id="orderDescInput" placeholder="e.g. 500x NW-BOM001 PCBA, Rev3" /></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="field"><label>Quantity / Amount</label><input type="text" id="orderQtyInput" placeholder="e.g. 500 pcs" style="font-family:var(--mono)" /></div>
+      <div class="field"><label>Order Date</label><input type="date" id="orderDateInput" style="font-family:var(--mono);font-size:12px" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="field"><label>Due / Delivery Date</label><input type="date" id="orderDueDateInput" style="font-family:var(--mono);font-size:12px" /></div>
+      <div class="field"><label>Value (SGD)</label><input type="text" id="orderValueInput" placeholder="e.g. 1200.00" style="font-family:var(--mono)" /></div>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Tracking Number</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="orderTrackingInput" placeholder="e.g. JT123456789SG" style="font-family:var(--mono);flex:1" />
+        <button class="btn btn-secondary btn-sm" onclick="openTrackModal(document.getElementById('orderTrackingInput').value.trim())" style="white-space:nowrap">Track &#x2197;</button>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:18px">
+      <label>Notes / Remarks</label>
+      <textarea id="orderNotesInput" rows="3" placeholder="Additional notes…"
+        style="padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-family:var(--sans);font-size:13px;resize:vertical;outline:none;width:100%;color:var(--text);background:var(--surface);line-height:1.5"></textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" style="flex:1" id="orderSaveBtn" onclick="saveOrder()">Save Order</button>
+      <button class="btn btn-danger btn-sm" id="orderDeleteBtn" onclick="deleteOrder()" style="display:none">Delete</button>
+    </div>
+    <div id="orderDrawerStatus" class="status-bar" style="margin-top:10px;display:none"></div>
+  </div>
+</div>
+
+<!-- TRACKING LOOKUP MODAL -->
+<div id="trackModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeTrackModal()">
+ <div style="background:var(--surface);border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+  <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:14px 14px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
+   <div>
+    <div style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--accent)" id="trackModalNum">—</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:3px" id="trackModalCarrierLabel">Detecting carrier…</div>
+   </div>
+   <button onclick="closeTrackModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:2px 6px;border-radius:6px;line-height:1">&#x2715;</button>
+  </div>
+  <div style="padding:20px 24px">
+   <div id="trackCarrierCard" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);margin-bottom:16px">
+    <div style="flex:1">
+     <div id="trackCarrierName" style="font-size:14px;font-weight:700;color:var(--text)"></div>
+     <div id="trackCarrierDesc" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+    </div>
+    <a id="trackCarrierBtn" href="#" target="_blank" rel="noopener"
+     style="background:var(--accent);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;font-family:var(--sans)">Track &#x2197;</a>
+   </div>
+   <div style="border-top:1px solid var(--border);padding-top:14px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Also try</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+     <a id="trackAfterShip" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">AfterShip &#x2197;</a>
+     <a id="track17track" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">17track &#x2197;</a>
+    </div>
+   </div>
+  </div>
+ </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -902,7 +1014,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfw6qOsjA0wiKn
 const SCAN_HISTORY_SHEET = "ScanHistory";
 const MAX_IMAGE_SIZE = 600;
 
-let cfg = { sheetName: "Sheet1", anthropicKey: "", mouserKey: "", dkClientId: "", dkSecret: "", lcscKey: "", lcscSecret: "" };
+let cfg = { sheetName: "Sheet1", anthropicKey: "", mouserKey: "", dkClientId: "", dkSecret: "" };
 let currentStream = null;
 let currentScan = null;
 const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
@@ -925,14 +1037,6 @@ function setMpQty(qty, btn) {
   if (mpCurrentData) renderMpDistCards(mpCurrentData);
 }
 
-// HMAC-SHA256 helper using WebCrypto (browser built-in, no library needed)
-async function hmacSha256Hex(secret, message) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
-  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
 async function searchMarketPrice() {
   const partNumber = document.getElementById('mpSearchInput').value.trim();
   const statusEl = document.getElementById('mpStatus');
@@ -946,7 +1050,7 @@ async function searchMarketPrice() {
     return;
   }
 
-  if (!cfg.mouserKey && !cfg.dkClientId && !cfg.lcscKey) {
+  if (!cfg.mouserKey && !cfg.dkClientId) {
     noKeyWarn.style.display = 'block';
     statusEl.style.display = 'none';
     return;
@@ -960,7 +1064,6 @@ async function searchMarketPrice() {
   const distUrls = {
     Mouser:  `https://www.mouser.com/Search/Refine?Keyword=${pn}`,
     DigiKey: `https://www.digikey.com/en/products/result?keywords=${pn}`,
-    LCSC:    `https://www.lcsc.com/search?q=${pn}`
   };
 
   statusEl.style.display = 'block';
@@ -1082,46 +1185,6 @@ async function searchMarketPrice() {
       results.distributors.push({ name: 'DigiKey', stock: null, currency: 'USD', price_breaks: [], url: distUrls.DigiKey, in_stock: false, noKey: true });
     }
 
-    // ── LCSC ────────────────────────────────────────────────────────────────────
-    const lcscKey = cfg.lcscKey, lcscSecret = cfg.lcscSecret;
-    if (lcscKey && lcscSecret) {
-      statusEl.innerHTML = '<span class="spinner"></span>Querying LCSC API…';
-      try {
-        const lcscNonce = Math.random().toString(36).substring(2,18).padEnd(16,'0').slice(0,16);
-        const lcscTs = String(Date.now());
-        const msgToSign = lcscKey + lcscNonce + lcscTs;
-        const lcscSig = await hmacSha256Hex(lcscSecret, msgToSign);
-        const lcscParams = new URLSearchParams({
-          key: lcscKey, nonce: lcscNonce, signature: lcscSig, timestamp: lcscTs,
-          keyword: partNumber, match_type: 'exact', current_page: '1', page_size: '5',
-          is_available: 'false', currency: 'USD'
-        });
-        const lcscResp = await fetch('https://ips.lcsc.com/rest/wmsc2agent/search/product?' + lcscParams.toString());
-        const lcscData = await lcscResp.json();
-        const lcscParts = lcscData?.result?.list || lcscData?.data?.list || lcscData?.list || [];
-        const lcscPart = lcscParts[0];
-        if (lcscPart) {
-          if (!results.description && lcscPart.productIntroEn) results.description = lcscPart.productIntroEn;
-          const lcscRawBreaks = lcscPart.prices || lcscPart.priceList || [];
-          const lcscBreaks = lcscRawBreaks.map(pb => ({
-            qty: parseInt(pb.ladder || pb.quantity || pb.startNumber || 1),
-            price: parseFloat(pb.usdPrice || pb.price || 0)
-          })).filter(pb => pb.qty > 0 && pb.price > 0);
-          const lcscStock = parseInt(lcscPart.stockNumber || lcscPart.stock || 0);
-          results.distributors.push({
-            name: 'LCSC', stock: lcscStock, currency: 'USD', price_breaks: lcscBreaks,
-            url: lcscPart.productUrl ? 'https://www.lcsc.com' + lcscPart.productUrl : distUrls.LCSC,
-            in_stock: lcscStock > 0
-          });
-        } else {
-          results.distributors.push({ name: 'LCSC', stock: 0, currency: 'USD', price_breaks: [], url: distUrls.LCSC, in_stock: false });
-        }
-      } catch(e) {
-        results.distributors.push({ name: 'LCSC', stock: 0, currency: 'USD', price_breaks: [], url: distUrls.LCSC, in_stock: false, error: e.message });
-      }
-    } else {
-      results.distributors.push({ name: 'LCSC', stock: null, currency: 'USD', price_breaks: [], url: distUrls.LCSC, in_stock: false, noKey: true });
-    }
 
     mpCurrentData = results;
     mpCurrentQty = 1;
@@ -1187,8 +1250,8 @@ function renderMpDistCards(data) {
     .filter(p => p !== null && p > 0);
   const bestPriceAtQty = pricesAtQty.length ? Math.min(...pricesAtQty) : null;
 
-  const distColors = { Mouser: '#15803d', DigiKey: '#1d4ed8', LCSC: '#c2410c' };
-  const distOrder = ['Mouser', 'DigiKey', 'LCSC'];
+  const distColors = { Mouser: '#15803d', DigiKey: '#1d4ed8' };
+  const distOrder = ['Mouser', 'DigiKey'];
 
   // Sort by known order, unknowns at end
   const sorted = [...distributors].sort((a, b) => {
@@ -1361,9 +1424,14 @@ function getCapacity(locId) { return locCapacity[locId] || 100; }
 function isFullSlotLabel(value) { return /^[A-Za-z0-9]+-\d+$/.test(String(value||'').trim()); }
 function getBaseLocationId(value) {
   const base = String(value||'').trim().replace(/-\d+$/, '').toUpperCase();
-  // Normalize: remove leading zeros from trailing digits e.g. TR01->TR1, PB02->PB02 (keep PB padding)
-  // Only strip for prefixes that use unpadded IDs: TR
   return base.replace(/^(TR)(0+)([1-9]\d*)$/, '$1$3');
+}
+function normalizeNexwahPn(value) {
+  // Strip leading zeros from both location prefix and slot number for TR locations
+  // e.g. TR02-02 -> TR2-2, TR01-31 -> TR1-31, PB26-25 stays PB26-25
+  return String(value||'').replace(/^(TR)(0*)([1-9]\d*)-(0*)([1-9]\d*)$/i,
+    (_, prefix, _z1, locNum, _z2, slotNum) => prefix.toUpperCase() + locNum + '-' + slotNum
+  );
 }
 function getSlotNumber(value) {
   const m = String(value||'').trim().match(/-(\d+)$/);
@@ -1760,8 +1828,6 @@ window.addEventListener("DOMContentLoaded", () => {
   cfg.mouserKey    = localStorage.getItem("nexwah_mouser_key") || "";
   cfg.dkClientId   = localStorage.getItem("nexwah_dk_client_id") || "";
   cfg.dkSecret     = localStorage.getItem("nexwah_dk_secret") || "";
-  cfg.lcscKey      = localStorage.getItem("nexwah_lcsc_key") || "";
-  cfg.lcscSecret   = localStorage.getItem("nexwah_lcsc_secret") || "";
   populateAllLocationDropdowns();
  loadSettingsPage();
  document.getElementById("topbarStatus").textContent = "Ready";
@@ -1794,6 +1860,8 @@ function showPage(name, btn) {
  document.getElementById("page-"+name).classList.add("active");
  if (btn) btn.classList.add("active");
  if (name==="inventory") { if (_invCache) _renderInvRows(document.getElementById("invTableBody")); else renderInventory(); }
+ if (name==="projects") { renderOrders(); }
+ if (name==="projects") { renderOrders(); }
  if (name==="scanhistory") renderScanHistory();
  if (name==="settings") loadSettingsPage();
  if (name==="marketprice") {
@@ -2452,8 +2520,6 @@ function loadSettingsPage() {
   const mki=document.getElementById("settingsMouserKey"); if(mki) mki.value=cfg.mouserKey||"";
   const dki=document.getElementById("settingsDkClientId"); if(dki) dki.value=cfg.dkClientId||"";
   const dks=document.getElementById("settingsDkSecret"); if(dks) dks.value=cfg.dkSecret||"";
-  const lki=document.getElementById("settingsLcscKey"); if(lki) lki.value=cfg.lcscKey||"";
-  const lks=document.getElementById("settingsLcscSecret"); if(lks) lks.value=cfg.lcscSecret||"";
   // Update badges
   function setBadge(id, active) {
     const el=document.getElementById(id); if(!el) return;
@@ -2464,8 +2530,7 @@ function loadSettingsPage() {
   }
   setBadge("mouserKeyBadge", !!cfg.mouserKey);
   setBadge("digikeyKeyBadge", !!(cfg.dkClientId && cfg.dkSecret));
-  setBadge("lcscKeyBadge", !!(cfg.lcscKey && cfg.lcscSecret));
-  if (statusEl) statusEl.innerHTML=`Anthropic Key: <b>${hasKey?"Saved":"Not set"}</b><br>Mouser API: <b>${cfg.mouserKey?"Saved":"Not set"}</b><br>DigiKey API: <b>${(cfg.dkClientId&&cfg.dkSecret)?"Saved":"Not set"}</b><br>LCSC API: <b>${(cfg.lcscKey&&cfg.lcscSecret)?"Saved":"Not set"}</b><br>Sheet: <b>${cfg.sheetName||"Sheet1"}</b>`;
+  if (statusEl) statusEl.innerHTML=`Anthropic Key: <b>${hasKey?"Saved":"Not set"}</b><br>Mouser API: <b>${cfg.mouserKey?"Saved":"Not set"}</b><br>DigiKey API: <b>${(cfg.dkClientId&&cfg.dkSecret)?"Saved":"Not set"}</b><br>Sheet: <b>${cfg.sheetName||"Sheet1"}</b>`;
 }
 function saveSettingsKey(){const val=document.getElementById("settingsApiKey").value.trim();const msgEl=document.getElementById("settingsKeyMsg");if(!val.startsWith("sk-ant-")){msgEl.style.display="block";msgEl.innerHTML="Key must start with sk-ant-";msgEl.className="status-bar err";return;}cfg.anthropicKey=val;localStorage.setItem("nexwah_anthropic_key",val);msgEl.style.display="block";msgEl.innerHTML="Key saved.";msgEl.className="status-bar ok";toast("API key saved.");loadSettingsPage();}
 function removeSettingsKey(){cfg.anthropicKey="";localStorage.removeItem("nexwah_anthropic_key");document.getElementById("settingsApiKey").value="";const msgEl=document.getElementById("settingsKeyMsg");msgEl.style.display="block";msgEl.innerHTML="Key removed.";msgEl.className="status-bar warn";toast("API key removed.");loadSettingsPage();}
@@ -2482,12 +2547,6 @@ function saveDistKey(dist) {
     cfg.dkClientId=id; cfg.dkSecret=sec;
     localStorage.setItem("nexwah_dk_client_id",id); localStorage.setItem("nexwah_dk_secret",sec);
     msgEl.innerHTML="DigiKey credentials saved."; msgEl.className="status-bar ok"; toast("DigiKey credentials saved.");
-  } else if (dist==="lcsc") {
-    const k=document.getElementById("settingsLcscKey").value.trim(), s=document.getElementById("settingsLcscSecret").value.trim();
-    if (!k||!s) { msgEl.innerHTML="Enter both API Key and Secret."; msgEl.className="status-bar err"; return; }
-    cfg.lcscKey=k; cfg.lcscSecret=s;
-    localStorage.setItem("nexwah_lcsc_key",k); localStorage.setItem("nexwah_lcsc_secret",s);
-    msgEl.innerHTML="LCSC credentials saved."; msgEl.className="status-bar ok"; toast("LCSC credentials saved.");
   }
   loadSettingsPage();
 }
@@ -2495,7 +2554,6 @@ function removeDistKey(dist) {
   const msgEl=document.getElementById("distKeyMsg"); msgEl.style.display="block";
   if (dist==="mouser") { cfg.mouserKey=""; localStorage.removeItem("nexwah_mouser_key"); document.getElementById("settingsMouserKey").value=""; msgEl.innerHTML="Mouser key removed."; msgEl.className="status-bar warn"; toast("Mouser key removed."); }
   else if (dist==="digikey") { cfg.dkClientId=""; cfg.dkSecret=""; localStorage.removeItem("nexwah_dk_client_id"); localStorage.removeItem("nexwah_dk_secret"); document.getElementById("settingsDkClientId").value=""; document.getElementById("settingsDkSecret").value=""; msgEl.innerHTML="DigiKey credentials removed."; msgEl.className="status-bar warn"; toast("DigiKey credentials removed."); }
-  else if (dist==="lcsc") { cfg.lcscKey=""; cfg.lcscSecret=""; localStorage.removeItem("nexwah_lcsc_key"); localStorage.removeItem("nexwah_lcsc_secret"); document.getElementById("settingsLcscKey").value=""; document.getElementById("settingsLcscSecret").value=""; msgEl.innerHTML="LCSC credentials removed."; msgEl.className="status-bar warn"; toast("LCSC credentials removed."); }
   loadSettingsPage();
 }
 
@@ -2540,22 +2598,42 @@ async function runBomCheck(mapping,rows){
   document.getElementById("bomExportPanel").style.display="none";
   document.getElementById("bomResults").innerHTML="";
   _bomOriginalRows=rows; _bomOriginalHeaders=rows.length?Object.keys(rows[0]):[]; _bomOriginalMapping=mapping;
-  const items=rows.map(r=>{const qty=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?(Math.max(1,parseInt(r[mapping.Sets])||1)):1;const mfrPn=mapping.MfrPN?String(r[mapping.MfrPN]||"").trim():"";const nexwahPn=mapping.NexwahPN?String(r[mapping.NexwahPN]||"").trim():"";const pn=mfrPn||nexwahPn;return{pn,qty:sets>1?qty*sets:qty,qtyPerSet:qty,sets,_row:r};}).filter(i=>i.pn&&i.qty>0);
+  const items=rows.map(r=>{const qty=parseInt(r[mapping.Quantity])||0;const sets=mapping.Sets?(Math.max(1,parseInt(r[mapping.Sets])||1)):1;const mfrPn=mapping.MfrPN?String(r[mapping.MfrPN]||"").trim():"";const nexwahPn=mapping.NexwahPN?String(r[mapping.NexwahPN]||"").trim():"";const pn=mfrPn||nexwahPn;return{pn,qty:sets>1?qty*sets:qty,qtyPerSet:qty,sets,_row:r,_mappedRow:r};}).filter(i=>i.pn&&i.qty>0);
   const setsUsed=mapping.Sets&&items.some(i=>i.sets>1);
   try{
     const sheetRows=await sheetRead(),inv={},invByLoc={};
-    sheetRows.slice(1).forEach((r,i)=>{if(r[2])inv[String(r[2]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||""};if(r[5])invByLoc[String(r[5]||"").toUpperCase()]={rowIdx:i+2,qty:parseInt(r[4])||0,location:r[5]||"",mpn:r[2]||""};});
+    sheetRows.slice(1).forEach((r,i)=>{const rowIdx=i+2;const col5=String(r[5]||'').trim();const col6=String(r[6]||'').trim();const effLoc=normalizeNexwahPn(getEffectiveLocation(r,rowIdx));const nexwahPn=(effLoc&&effLoc!==col5)?effLoc:(col5&&col6&&/^\d+$/.test(col6))?col5+'-'+col6:effLoc||col5;if(r[2]){const k=String(r[2]||'').toUpperCase();inv[k]={rowIdx,qty:parseInt(r[4])||0,location:col5,nexwahPn};}if(r[5])invByLoc[String(r[5]||"").toUpperCase()]={rowIdx,qty:parseInt(r[4])||0,location:col5,nexwahPn,mpn:r[2]||""};});
     let totalParts=0,inStock=0,notEnough=0,notFound=0; bomPendingDispatch=[];
-    items.forEach(({pn,qty,qtyPerSet,sets,_row})=>{totalParts++;const key=pn.toUpperCase();const stock=inv[key]||invByLoc[key];if(!stock){notFound++;_row.__status="NOT IN INVENTORY";_row.__stock=0;_row.__needed=qty;_row.__shortage=qty;_row.__location="";}else if(stock.qty<qty){notEnough++;_row.__status="NOT ENOUGH";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=qty-stock.qty;_row.__location=stock.location||"";}else{inStock++;bomPendingDispatch.push({pn,qty,rowIdx:stock.rowIdx,currentQty:stock.qty});_row.__status="IN STOCK";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=0;_row.__location=stock.location||"";}});
+    items.forEach(({pn,qty,qtyPerSet,sets,_row})=>{totalParts++;const key=pn.toUpperCase();const stock=inv[key]||invByLoc[key];if(!stock){notFound++;_row.__status="NOT IN INVENTORY";_row.__stock=0;_row.__needed=qty;_row.__shortage=qty;_row.__location="";
+        _row.__recs=getBomRecommendations(_row,mapping,sheetRows);}else if(stock.qty<qty){notEnough++;_row.__status="NOT ENOUGH";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=qty-stock.qty;_row.__location=stock.location||"";}else{inStock++;bomPendingDispatch.push({pn,qty,rowIdx:stock.rowIdx,currentQty:stock.qty});_row.__status="IN STOCK";_row.__stock=stock.qty;_row.__needed=qty;_row.__shortage=0;_row.__location=stock.nexwahPn||stock.location||"";}});
     const allOk=notFound===0&&notEnough===0;
     document.getElementById("bomResults").innerHTML=`<div class="card"><div class="card-title">Check Complete${setsUsed?' <span style="font-size:11px;color:var(--muted);font-weight:400">(qty × sets)</span>':''}</div><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Status</th><th style="text-align:right;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Parts</th></tr></thead><tbody><tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 12px;color:var(--text)">In Stock</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${inStock}</td></tr><tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 12px;color:var(--text)">Not Enough</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${notEnough}</td></tr><tr><td style="padding:9px 12px;color:var(--text)">Not Found</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${notFound}</td></tr></tbody></table></div>`;
     if(bomPendingDispatch.length>0){document.getElementById("bomConfirmPanel").style.display="block";document.getElementById("bomConfirmSummary").innerHTML=`<b>${bomPendingDispatch.length}</b> part(s) can be deducted from stock:<br><span style="font-family:var(--mono);font-size:12px">${bomPendingDispatch.map(i=>`${i.pn} × ${i.qty}`).join("<br>")}</span>`;document.getElementById("bomConfirmStatus").style.display="none";}else{document.getElementById("bomConfirmPanel").style.display="none";}
+    // Show NOT IN INVENTORY items with recommendations inline
+    const notFoundWithRecs = items.filter(i => i._row.__status === "NOT IN INVENTORY" && i._row.__recs && i._row.__recs.length > 0);
+    if (notFoundWithRecs.length > 0) {
+      const recRows = notFoundWithRecs.map(item => {
+        const recsHtml = item._row.__recs.map(loc =>
+          `<span style="display:inline-block;padding:2px 8px;background:var(--accent-light);border:1px solid #c3d9ff;border-radius:6px;font-family:var(--mono);font-size:11px;color:var(--accent);margin-right:4px">${escHtml(loc)}</span>`
+        ).join('');
+        return `<tr><td class="mono" style="font-size:12px;padding:8px 12px">${escHtml(item.pn)}</td><td style="padding:8px 12px">${recsHtml}</td></tr>`;
+      }).join('');
+      document.getElementById("bomResults").innerHTML += `<div class="card" style="margin-top:14px">
+        <div class="card-title">Suggested Locations for Not Found Parts</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Matched by footprint and value from your inventory.</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Part Number</th>
+            <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Suggested Locations</th>
+          </tr></thead><tbody>${recRows}</tbody>
+        </table></div>`;
+    }
     document.getElementById("bomExportPanel").style.display="block";
     document.getElementById("bomStatus").innerHTML=allOk?`All ${totalParts} parts available.`:`⚠ ${totalParts} parts checked — download report for full details.`;
     document.getElementById("bomStatus").className="status-bar "+(allOk?"ok":"warn");
   }catch(e){document.getElementById("bomStatus").innerHTML="Error: "+e.message;document.getElementById("bomStatus").className="status-bar err";}
 }
-function exportBomReport(){if(!_bomOriginalRows.length){toast("No results to export.");return;}try{const wb=XLSX.utils.book_new();const exportHeaders=[..._bomOriginalHeaders,"Stock Status","Stock Available","Qty Needed","Shortage","Location"];const exportData=[exportHeaders];_bomOriginalRows.forEach(row=>{const vals=_bomOriginalHeaders.map(h=>row[h]||"");if(row.__status!==undefined){vals.push(row.__status,row.__stock,row.__needed,row.__shortage>0?row.__shortage:"",row.__location);}else{vals.push("","","","","");}exportData.push(vals);});const ws=XLSX.utils.aoa_to_sheet(exportData);XLSX.utils.book_append_sheet(wb,ws,"BOM Check");XLSX.writeFile(wb,"BOM_Check_"+todayStr()+".xlsx");toast("Report downloaded.");}catch(e){toast("Export failed: "+e.message);}}
+function exportBomReport(){if(!_bomOriginalRows.length){toast("No results to export.");return;}try{const wb=XLSX.utils.book_new();const exportHeaders=[..._bomOriginalHeaders,"Stock Status","Stock Available","Qty Needed","Shortage","Location","Suggested Locations"];const exportData=[exportHeaders];_bomOriginalRows.forEach(row=>{const vals=_bomOriginalHeaders.map(h=>row[h]||"");if(row.__status!==undefined){vals.push(row.__status,row.__stock,row.__needed,row.__shortage>0?row.__shortage:"",row.__location,row.__recs?row.__recs.join(', '):'');}else{vals.push("","","","","");}exportData.push(vals);});const ws=XLSX.utils.aoa_to_sheet(exportData);XLSX.utils.book_append_sheet(wb,ws,"BOM Check");XLSX.writeFile(wb,"BOM_Check_"+todayStr()+".xlsx");toast("Report downloaded.");}catch(e){toast("Export failed: "+e.message);}}
 async function confirmOrderDispatch(){const statusEl=document.getElementById("bomConfirmStatus");statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Deducting stock…';statusEl.className="status-bar loading";const today=todayStr();try{for(const item of bomPendingDispatch){const newQty=item.currentQty-item.qty;await sheetUpdate(item.rowIdx,newQty,today);await sheetAppendTx([today,item.pn,"Order Check","Use",item.qty,item.currentQty,newQty,"Order dispatch"]);}statusEl.innerHTML=`Stock deducted for ${bomPendingDispatch.length} parts.`;statusEl.className="status-bar ok";toast("Order dispatched.");bomPendingDispatch=[];document.getElementById("bomConfirmPanel").style.display="none";}catch(e){statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";}}
 function cancelOrderDispatch(){document.getElementById("bomConfirmPanel").style.display="none";bomPendingDispatch=[];}
 function downloadSampleCSV(){downloadFile("sample_order_bom.csv","text/csv","Part Number,Quantity,Description\nSN74LVC1G08DCKR,100,IC Gate AND\nGRM188R71H104KA93D,500,Cap 100nF 50V\n");}
@@ -2609,9 +2687,218 @@ let toastTimer;
 function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),3000);}
 
 /* qty toggle style */
+
+/* Projects tab styles */
+document.head.insertAdjacentHTML('beforeend', `<style>
+.proj-filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.proj-filter-btn{font-size:12px;font-weight:500;padding:6px 14px;border:1px solid var(--border2);border-radius:20px;background:var(--surface);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;font-family:var(--sans)}
+.proj-filter-btn:hover,.proj-filter-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.order-status{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono);white-space:nowrap}
+.order-status.new{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.order-status.progress{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.order-status.completed{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+.order-status.cancelled{background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db}
+.order-status.pending{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
+</style>`);
+
 const mpQtyStyle = document.createElement('style');
 mpQtyStyle.textContent = '.mp-qty-btn.active-qty { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }';
 document.head.appendChild(mpQtyStyle);
+
+// ── PROJECTS / ORDERS ─────────────────────────────────────
+const ORDERS_SHEET = "Projects";
+let _ordersCache = null;
+let _projFilter  = "all";
+const ORDER_COLS = { date:0,orderId:1,company:2,contact:3,description:4,qty:5,status:6,dueDate:7,value:8,notes:9,tracking:10 };
+
+function setProjFilter(f,btn){_projFilter=f;document.querySelectorAll(".proj-filter-btn").forEach(b=>b.classList.remove("active"));if(btn)btn.classList.add("active");renderOrders();}
+
+async function loadOrders(force){
+  if(_ordersCache&&!force)return _ordersCache;
+  const url=`${APPS_SCRIPT_URL}?action=read&sheet=${encodeURIComponent(ORDERS_SHEET)}`;
+  const resp=await fetch(url);const data=await resp.json();
+  _ordersCache=Array.isArray(data)?data:[];return _ordersCache;
+}
+
+async function renderOrders(){
+  const tbody=document.getElementById("ordersTableBody");if(!tbody)return;
+  if(!_ordersCache)tbody.innerHTML=`<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Loading…</td></tr>`;
+  try{
+    const rows=await loadOrders();
+    const search=(document.getElementById("projSearch")?.value||"").trim().toLowerCase();
+    const C=ORDER_COLS;
+    let data=rows.slice(1).map((r,i)=>({r,origIdx:i+2})).filter(({r})=>{
+      if(!r[C.orderId]&&!r[C.company])return false;
+      const status=(r[C.status]||"new").toLowerCase();
+      const matchFilter=_projFilter==="all"||status===_projFilter;
+      const matchSearch=!search||[r[C.orderId],r[C.company],r[C.contact],r[C.description],r[C.notes],r[C.tracking]].some(v=>(v||"").toLowerCase().includes(search));
+      return matchFilter&&matchSearch;
+    });
+    data.sort((a,b)=>(b.r[C.date]||"").localeCompare(a.r[C.date]||""));
+    if(!data.length){tbody.innerHTML=`<tr><td colspan="8" class="empty-state">${search?"No orders match your search.":"No orders yet — click + New Order to add one."}</td></tr>`;return;}
+    const statusLabels={new:"New",pending:"Pending",progress:"In Progress",completed:"Completed",cancelled:"Cancelled"};
+    tbody.innerHTML=data.map(({r,origIdx})=>{
+      const status=(r[C.status]||"new").toLowerCase();
+      const tracking=escHtml(r[C.tracking]||"");
+      return `<tr class="inv-row-clickable" onclick="openOrderDrawer(${origIdx})">
+        <td class="mono" style="font-weight:600">${escHtml(r[C.orderId]||"—")}</td>
+        <td style="font-weight:500">${escHtml(r[C.company]||"—")}</td>
+        <td style="color:var(--muted);font-size:12px">${escHtml(r[C.contact]||"")}</td>
+        <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r[C.description]||"—")}</td>
+        <td><span class="order-status ${status}">${statusLabels[status]||status}</span></td>
+        <td class="mono" style="font-size:12px">${tracking?`<span onclick="openTrackModal('${tracking}');event.stopPropagation()" style="color:var(--accent);cursor:pointer;text-decoration:underline dotted">${tracking}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+        <td style="color:var(--muted);font-size:12px">${r[C.date]?formatDate(r[C.date]):"—"}</td>
+        <td onclick="event.stopPropagation()"><button class="btn btn-secondary btn-sm" onclick="openOrderDrawer(${origIdx})">Edit</button></td>
+      </tr>`;
+    }).join("");
+  }catch(e){tbody.innerHTML=`<tr><td colspan="8" class="empty-state" style="color:var(--error)">Could not load orders: ${e.message}</td></tr>`;}
+}
+
+function openOrderDrawer(rowIdx){
+  const isNew=rowIdx===null;
+  document.getElementById("orderDrawerTitle").textContent=isNew?"New Order":"Edit Order";
+  document.getElementById("orderDrawerSub").textContent=isNew?"Fill in the details below":"Update order details";
+  document.getElementById("orderDrawerRowIdx").value=rowIdx||"";
+  document.getElementById("orderDeleteBtn").style.display=isNew?"none":"";
+  document.getElementById("orderDrawerStatus").style.display="none";
+  if(isNew){
+    const existing=(_ordersCache||[]).slice(1).map(r=>r[ORDER_COLS.orderId]||"").filter(id=>/^ORD-\d+$/.test(id)).map(id=>parseInt(id.replace("ORD-",""))).filter(n=>!isNaN(n));
+    const nextNum=existing.length?Math.max(...existing)+1:1;
+    document.getElementById("orderIdInput").value="ORD-"+String(nextNum).padStart(3,"0");
+    document.getElementById("orderStatusInput").value="new";
+    ["orderCompanyInput","orderContactInput","orderDescInput","orderQtyInput","orderDueDateInput","orderValueInput","orderNotesInput","orderTrackingInput"].forEach(id=>document.getElementById(id).value="");
+    document.getElementById("orderDateInput").value=todayStr();
+  }else{
+    const rows=_ordersCache||[];const r=rows[rowIdx-1];if(!r)return;const C=ORDER_COLS;
+    document.getElementById("orderIdInput").value=r[C.orderId]||"";
+    document.getElementById("orderStatusInput").value=(r[C.status]||"new").toLowerCase();
+    document.getElementById("orderCompanyInput").value=r[C.company]||"";
+    document.getElementById("orderContactInput").value=r[C.contact]||"";
+    document.getElementById("orderDescInput").value=r[C.description]||"";
+    document.getElementById("orderQtyInput").value=r[C.qty]||"";
+    document.getElementById("orderDateInput").value=r[C.date]||"";
+    document.getElementById("orderDueDateInput").value=r[C.dueDate]||"";
+    document.getElementById("orderValueInput").value=r[C.value]||"";
+    document.getElementById("orderNotesInput").value=r[C.notes]||"";
+    document.getElementById("orderTrackingInput").value=r[C.tracking]||"";
+  }
+  document.getElementById("orderDrawerOverlay").classList.add("open");
+  document.getElementById("orderDrawer").classList.add("open");
+  setTimeout(()=>document.getElementById("orderCompanyInput").focus(),300);
+}
+
+function closeOrderDrawer(){document.getElementById("orderDrawerOverlay").classList.remove("open");document.getElementById("orderDrawer").classList.remove("open");}
+
+async function saveOrder(){
+  const statusEl=document.getElementById("orderDrawerStatus");
+  const rowIdx=document.getElementById("orderDrawerRowIdx").value;
+  const isNew=!rowIdx;
+  const company=document.getElementById("orderCompanyInput").value.trim();
+  const desc=document.getElementById("orderDescInput").value.trim();
+  if(!company){statusEl.style.display="block";statusEl.innerHTML="Company name is required.";statusEl.className="status-bar err";return;}
+  if(!desc){statusEl.style.display="block";statusEl.innerHTML="Description is required.";statusEl.className="status-bar err";return;}
+  statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Saving…';statusEl.className="status-bar loading";
+  const row=[document.getElementById("orderDateInput").value||todayStr(),document.getElementById("orderIdInput").value.trim(),company,document.getElementById("orderContactInput").value.trim(),desc,document.getElementById("orderQtyInput").value.trim(),document.getElementById("orderStatusInput").value,document.getElementById("orderDueDateInput").value,document.getElementById("orderValueInput").value.trim(),document.getElementById("orderNotesInput").value.trim(),document.getElementById("orderTrackingInput").value.trim()];
+  try{
+    const url=isNew?`${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(ORDERS_SHEET)}&row=${encodeURIComponent(JSON.stringify(row))}`:
+      `${APPS_SCRIPT_URL}?action=updateRow&sheet=${encodeURIComponent(ORDERS_SHEET)}&rowIndex=${rowIdx}&row=${encodeURIComponent(JSON.stringify(row))}`;
+    const res=await(await fetch(url)).text();
+    if(res.trim()!=="ok"&&isNew)throw new Error(res);
+    toast(`Order ${isNew?"saved":"updated"}: ${row[1]||company}`);
+    _ordersCache=null;statusEl.innerHTML="Saved.";statusEl.className="status-bar ok";
+    setTimeout(closeOrderDrawer,700);renderOrders();
+  }catch(e){statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";}
+}
+
+async function deleteOrder(){
+  const rowIdx=document.getElementById("orderDrawerRowIdx").value;
+  const company=document.getElementById("orderCompanyInput").value||"this order";
+  if(!rowIdx||!confirm(`Delete order for "${company}"?`))return;
+  const statusEl=document.getElementById("orderDrawerStatus");
+  statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Deleting…';statusEl.className="status-bar loading";
+  try{await fetch(`${APPS_SCRIPT_URL}?action=deleteRow&sheet=${encodeURIComponent(ORDERS_SHEET)}&rowIndex=${rowIdx}`);_ordersCache=null;toast("Order deleted.");closeOrderDrawer();renderOrders();}
+  catch(e){statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";}
+}
+
+async function exportOrdersCSV(){
+  try{const rows=await loadOrders(true);if(!rows.length){toast("No orders to export.");return;}const csv=rows.map(r=>r.map(c=>`"${(c||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");downloadFile("nexwah_orders_"+todayStr()+".csv","text/csv",csv);toast("Orders exported.");}
+  catch(e){toast("Export failed: "+e.message);}
+}
+
+// ── TRACKING LOOKUP ────────────────────────────────────────
+function detectCarrier(raw){
+  const t=(raw||"").toUpperCase().replace(/\s+/g,"");if(!t)return null;
+  if(/^1Z[A-Z0-9]{16}$/.test(t))return{name:"UPS",desc:"United Parcel Service",url:`https://www.ups.com/track?tracknum=${t}&loc=en_SG`};
+  if(/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(t)){const s=t.slice(-2);const names={SG:"SingPost",GB:"Royal Mail",NL:"PostNL",CN:"China Post/EMS",US:"USPS",MY:"Pos Malaysia",DE:"Deutsche Post"};const urls={SG:`https://www.singpost.com/track-items#${t}`,GB:`https://www.royalmail.com/track-your-item#/tracking-results/${t}`,CN:`https://www.ems.com.cn/queryList?mailNo=${t}`};return{name:names[s]||"Postal ("+s+")",desc:"International postal",url:urls[s]||`https://track.aftership.com/${t}`};}
+  if(/^JT/i.test(t))return{name:"J&T Express",desc:"J&T Express (SEA)",url:`https://www.jtexpress.sg/index/query/gzquery.html?bills=${t}`};
+  if(/^(NNVSG|NNVMY|NV[A-Z]{2})/i.test(t))return{name:"Ninja Van",desc:"Ninja Van (SEA)",url:`https://www.ninjavan.co/en-sg/tracking?id=${t}`};
+  if(/^\d{10}$/.test(t))return{name:"DHL Express",desc:"DHL Express",url:`https://www.dhl.com/sg-en/home/tracking.html?tracking-id=${t}&submit=1`};
+  if(/^SF\d+/i.test(t))return{name:"SF Express",desc:"SF Express",url:`https://www.sf-international.com/sg/en/dynamic_function/waybill/#search/bill_numbers=${t}`};
+  return{name:"Unknown carrier",desc:"Using universal tracker",url:`https://track.aftership.com/${t}`};
+}
+function openTrackModal(trackingNum){
+  if(!trackingNum||trackingNum==="—")return;
+  const carrier=detectCarrier(trackingNum)||{name:"Unknown",desc:"",url:`https://track.aftership.com/${trackingNum}`};
+  document.getElementById("trackModalNum").textContent=trackingNum;
+  document.getElementById("trackModalCarrierLabel").textContent="Carrier detected";
+  document.getElementById("trackCarrierName").textContent=carrier.name;
+  document.getElementById("trackCarrierDesc").textContent=carrier.desc;
+  document.getElementById("trackCarrierBtn").href=carrier.url;
+  const enc=encodeURIComponent(trackingNum);
+  document.getElementById("trackAfterShip").href=`https://track.aftership.com/${enc}`;
+  document.getElementById("track17track").href=`https://t.17track.net/en#nums=${enc}`;
+  document.getElementById("trackModalOverlay").style.display="flex";
+}
+function closeTrackModal(){document.getElementById("trackModalOverlay").style.display="none";}
+
+// ── BOM RECOMMENDATIONS ────────────────────────────────────
+function extractFootprintFromText(text) {
+  const s = String(text||'').toUpperCase();
+  const m = s.match(/\b(01005|0201|0402|0603|0805|1206|1210|1812|2010|2512|SOT-?23[A-Z0-9]*|SOT-?323|SOD-?123|SOD-?323|SC-?70|SC-?88|SMA\b|SMB\b|SMC\b|DO-?214[A-Z]?|TO-?220|TO-?252|TO-?263)\b/);
+  return m ? m[1].replace(/-/g,'').toUpperCase() : '';
+}
+
+function extractValueFromText(text) {
+  const s = String(text||'').toUpperCase();
+  // Match: number + unit (e.g. 220PF, 10K, 100NF, 4.7UF, 1M, 47R, 100UH)
+  const m = s.match(/\b(\d+\.?\d*\s*(?:PF|NF|UF|MF|OHM|MHZ|KHZ|UH|NH|MH))\b|\b(\d+\.?\d*\s*[KMRG])\b/);
+  if (m) return (m[1]||m[2]).replace(/\s+/g,'');
+  return '';
+}
+
+function getBomRecommendations(bомRow, mapping, sheetRows) {
+  // Extract footprint and value from the BOM row's description column only
+  const src = [
+    mapping.Description ? (bомRow[mapping.Description]||'') : '',
+    mapping.MfrPN ? (bомRow[mapping.MfrPN]||'') : ''
+  ].join(' ');
+
+  const targetFP  = extractFootprintFromText(src);
+  const targetVal = extractValueFromText(src);
+
+  if (!targetFP && !targetVal) return [];
+
+  const scored = [];
+  sheetRows.slice(1).forEach((r, i) => {
+    const desc = String(r[3]||'');
+    const fp  = extractFootprintFromText(desc);
+    const val = extractValueFromText(desc);
+    const loc = getEffectiveLocation(r, i+2);
+    if (!loc || loc === String(r[5]||'').trim()) return; // skip if no slot info
+    let score = 0;
+    if (targetFP  && fp  && fp.includes(targetFP))  score += 2;
+    if (targetVal && val && (val === targetVal || val.startsWith(targetVal) || targetVal.startsWith(val))) score += 1;
+    if (score > 0) scored.push({ loc, score });
+  });
+
+  scored.sort((a,b) => b.score - a.score);
+  const seen = new Set(), results = [];
+  for (const item of scored) {
+    if (!seen.has(item.loc) && results.length < 3) { seen.add(item.loc); results.push(item.loc); }
+  }
+  return results;
+}
+
 </script>
 </body>
 </html>
