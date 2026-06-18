@@ -280,10 +280,10 @@
 </div>
 
 <div class="nav">
- <button class="nav-btn active" onclick="showPage('scanner',this)">Scan Label</button>
+ <button class="nav-btn active" onclick="showPage('inventory',this)">Inventory</button>
+ <button class="nav-btn" onclick="showPage('scanner',this)">Scan Label</button>
  <button class="nav-btn" onclick="showPage('bom',this)">Order Check</button>
  <button class="nav-btn" onclick="showPage('bulkreceive',this)">Bulk Receive</button>
- <button class="nav-btn" onclick="showPage('inventory',this)">Inventory</button>
  <button class="nav-btn" onclick="showPage('location',this)">Location</button>
  <button class="nav-btn" onclick="showPage('marketprice',this)">Market Price</button>
  <button class="nav-btn" onclick="showPage('scanhistory',this)">Scan History</button>
@@ -295,7 +295,7 @@
  <div id="globalAlert"></div>
 
  <!-- SCANNER -->
- <div id="page-scanner" class="page active">
+ <div id="page-scanner" class="page"
  <div class="card">
  <div class="card-title">Scan Label</div>
  <div style="display:flex;gap:0;margin-bottom:18px;border:1px solid var(--border2);border-radius:9px;overflow:hidden;width:fit-content">
@@ -395,8 +395,9 @@
    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
      <div>
        <div style="font-size:14px;font-weight:600;color:var(--text)">Export Results</div>
+       <div id="bomPriceStatus" style="font-size:12px;color:var(--muted);margin-top:3px;font-family:var(--mono)"></div>
      </div>
-     <button class="btn btn-primary" onclick="exportBomReport()">Download Report (.xlsx)</button>
+     <button class="btn btn-primary" id="bomExportBtn" onclick="exportBomReport()">Download Report (.xlsx)</button>
    </div>
  </div>
  <div id="bomConfirmPanel" style="display:none" class="card">
@@ -411,7 +412,7 @@
  </div>
 
  <!-- INVENTORY -->
- <div id="page-inventory" class="page">
+ <div id="page-inventory" class="page active">
  <div class="card" style="margin-bottom:14px">
  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
  <div>
@@ -558,7 +559,7 @@
        </div>
      </div>
      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-       <input type="text" id="projSearch" placeholder="Search company, order ID, description…" oninput="renderOrders()"
+       <input type="text" id="projSearch" placeholder="Search project name, company, description…" oninput="renderOrders()"
          style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:var(--sans);outline:none" />
      </div>
      <div class="proj-filter-row" style="margin-top:10px;margin-bottom:0">
@@ -573,12 +574,12 @@
    <div id="projLoadStatus" class="status-bar" style="display:none;margin-bottom:12px"></div>
    <div class="table-wrap" id="ordersTableWrap">
      <table>
-       <thead><tr>
-         <th>Order ID</th><th>Company</th><th>Contact</th>
-         <th>Description</th><th>Status</th><th>Tracking No.</th><th>Date</th><th>Actions</th>
-       </tr></thead>
+<thead><tr>
+  <th>Date</th><th>Project Name</th><th>Description</th>
+  <th>Designator</th><th>Part Number</th><th>Quantity</th><th>Company</th><th>Tracking No.</th><th>Status</th><th>Actions</th>
+</tr></thead>
        <tbody id="ordersTableBody">
-         <tr><td colspan="8" class="empty-state"><span class="spinner"></span> Loading orders…</td></tr>
+         <tr><td colspan="10" class="empty-state"><span class="spinner"></span> Loading orders…</td></tr>
        </tbody>
      </table>
    </div>
@@ -605,13 +606,9 @@
 
  <!-- Anthropic -->
  <div style="margin-bottom:22px">
- <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Anthropic API Key <span style="font-size:11px;color:var(--muted);font-weight:400">(Claude Vision label scanning)</span></div>
+ <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Label Scanning <span style="font-size:11px;color:var(--muted);font-weight:400">(Kimi Vision — handled via server, no key needed here)</span></div>
  <div id="apiKeyStatus" style="margin-bottom:10px"></div>
- <div class="field" style="max-width:500px"><label>API Key</label><input type="password" id="settingsApiKey" placeholder="sk-ant-api03-..." style="font-family:var(--mono);font-size:13px" /></div>
- <div class="btn-row">
- <button class="btn btn-primary" onclick="saveSettingsKey()">Save Key</button>
- <button class="btn btn-danger" onclick="removeSettingsKey()">Remove Key</button>
- </div>
+ <div class="alert alert-success" style="margin-bottom:10px">Label scanning is powered by Kimi Vision via the company API gateway. No key required in this browser.</div>
  <div id="settingsKeyMsg" class="status-bar" style="margin-top:10px;display:none"></div>
  </div>
 
@@ -856,20 +853,7 @@
 </div>
 
 <!-- API KEY MODAL -->
-<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center">
- <div style="background:#fff;border-radius:14px;padding:32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
- <div style="font-family:var(--mono);font-size:18px;font-weight:500;color:var(--accent);margin-bottom:8px">NEXWAH / Inventory</div>
- <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">Enter your Anthropic API key to enable label scanning.<br>It will be saved in this browser.</div>
- <div style="margin-bottom:14px">
- <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:5px">Anthropic API Key</div>
- <input type="password" id="modalKeyInput" placeholder="sk-ant-..." style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;font-family:var(--mono);font-size:13px;outline:none;" onkeydown="if(event.key==='Enter') saveModalKey()" />
- </div>
- <button onclick="saveModalKey()" style="width:100%;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save &amp; Continue</button>
- <button onclick="skipApiKey()" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border2);padding:10px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);margin-top:8px">Skip &mdash; Use Free OCR (Tesseract)</button>
- <div id="modalError" style="color:var(--error);font-size:12px;margin-top:10px;display:none">Key should start with sk-ant- &mdash; please check and try again.</div>
- <div style="font-size:11px;color:var(--muted);margin-top:14px;text-align:center">Get your key at <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--accent)">console.anthropic.com/keys</a></div>
- </div>
-</div>
+<!-- keyModal removed — label scanning handled via Apps Script/Kimi Vision -->
 
 <!-- PRINT LABEL MODAL -->
 <div id="printModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center">
@@ -936,7 +920,7 @@
   <div class="inv-drawer-body">
     <input type="hidden" id="orderDrawerRowIdx" value="" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="field"><label>Order ID</label><input type="text" id="orderIdInput" placeholder="e.g. ORD-001" style="font-family:var(--mono);font-weight:600" /></div>
+      <div class="field"><label>Project Name</label><input type="text" id="orderIdInput" placeholder="e.g. NW-BOM001, Water Level Rev3" style="font-weight:600" /></div>
       <div class="field"><label>Status</label>
         <select id="orderStatusInput" style="font-family:var(--sans);font-size:13px">
           <option value="new">New</option><option value="pending">Pending</option>
@@ -950,6 +934,8 @@
       <div class="field"><label>Contact Person</label><input type="text" id="orderContactInput" placeholder="e.g. John Tan" /></div>
     </div>
     <div class="field" style="margin-bottom:12px"><label>Order Description *</label><input type="text" id="orderDescInput" placeholder="e.g. 500x NW-BOM001 PCBA, Rev3" /></div>
+    <div class="field" style="margin-bottom:12px"><label>Designator</label><input type="text" id="orderDesignatorInput" placeholder="e.g. NW-BOM001, SG736823600A" style="font-family:var(--mono)" /></div>
+   <div class="field" style="margin-bottom:12px"><label>Part Number</label><input type="text" id="orderPartNumberInput" placeholder="e.g. GRM188R71H104KA93D" style="font-family:var(--mono)" /></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
       <div class="field"><label>Quantity / Amount</label><input type="text" id="orderQtyInput" placeholder="e.g. 500 pcs" style="font-family:var(--mono)" /></div>
       <div class="field"><label>Order Date</label><input type="date" id="orderDateInput" style="font-family:var(--mono);font-size:12px" /></div>
@@ -1015,7 +1001,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfw6qOsjA0wiKn
 const SCAN_HISTORY_SHEET = "ScanHistory";
 const MAX_IMAGE_SIZE = 600;
 
-let cfg = { sheetName: "Sheet1", anthropicKey: "", mouserKey: "", dkClientId: "", dkSecret: "" };
+let cfg = { sheetName: "Sheet1", mouserKey: "", dkClientId: "", dkSecret: "" };
 let currentStream = null;
 let currentScan = null;
 const SCAN_REGION = { x: 0.10, y: 0.15, w: 0.80, h: 0.70 };
@@ -1063,7 +1049,7 @@ async function searchMarketPrice() {
   statusEl.className = 'status-bar loading';
   const pn = encodeURIComponent(partNumber);
   const distUrls = {
-    Mouser:  `https://www.mouser.com/Search/Refine?Keyword=${pn}`,
+    Mouser:  `https://www.mouser.sg/c/?q=${pn}`,
     DigiKey: `https://www.digikey.com/en/products/result?keywords=${pn}`,
   };
 
@@ -1080,7 +1066,7 @@ async function searchMarketPrice() {
     if (mouserKey) {
       statusEl.innerHTML = '<span class="spinner"></span>Querying Mouser API…';
       try {
-        const mResp = await fetch(`https://api.mouser.com/api/v1/search/keyword?apiKey=${mouserKey}`, {
+        const mResp = await fetch(`https://api.mouser.com/api/v1/search/keyword?apiKey=${mouserKey}&countryCode=SG&languageCode=EN&currency=SGD`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({ SearchByKeywordRequest: { keyword: partNumber, records: 1, startingRecord: 0, searchOptions: 'InStock', searchWithSPNsFirst: 'N' } })
@@ -1097,9 +1083,11 @@ async function searchMarketPrice() {
             qty: parseInt(pb.Quantity), price: parseFloat((pb.Price || '0').replace(/[^0-9.]/g,''))
           })).filter(pb => pb.qty > 0 && pb.price > 0);
           const mStock = parseInt((mPart.Availability || '').replace(/[^0-9]/g,'') || '0');
+          // Detect currency from response — SG key returns SGD
+          const mCurrency = (mPart.PriceBreaks?.[0]?.Currency || 'SGD').toUpperCase();
           results.distributors.push({
-            name: 'Mouser', stock: mStock, currency: 'USD', price_breaks: mBreaks,
-            url: mPart.ProductDetailUrl ? (mPart.ProductDetailUrl.startsWith('http') ? mPart.ProductDetailUrl : 'https://www.mouser.com' + mPart.ProductDetailUrl) : distUrls.Mouser,
+            name: 'Mouser', stock: mStock, currency: mCurrency, price_breaks: mBreaks,
+            url: mPart.ProductDetailUrl ? (mPart.ProductDetailUrl.startsWith('http') ? mPart.ProductDetailUrl : 'https://www.mouser.sg' + mPart.ProductDetailUrl) : distUrls.Mouser,
             in_stock: mStock > 0
           });
         } else {
@@ -1740,7 +1728,9 @@ const COL_MAP_FIELDS_BOM = [
  { key:"NexwahPN", label:"Nexwah PN", required:false },
  { key:"Quantity", label:"Quantity (per set)", required:true },
  { key:"Sets", label:"No. of Sets (only if >1 board)", required:false },
- { key:"Description", label:"Description", required:false },
+ { key:"Footprint", label:"Footprint / Package", required:false },
+ { key:"Value", label:"Value", required:false },
+ { key:"Description", label:"Description / Comment", required:false },
  { key:"Supplier", label:"Supplier", required:false },
  { key:"SupplierPN", label:"Supplier PN", required:false },
 ];
@@ -1763,7 +1753,9 @@ function autoDetectColumns(headers) {
  mapping.NexwahPN  = find(/^(NEXWAH\s*PN|NEXWAH\s*PART|NEXWAH|NPN)$/,/NEXWAH/);
  mapping.Quantity  = find(/^(QTY|QUANTITY|REQ|REQUIRED|COUNT|AMOUNT)$/,/QUANT/,/QTY/);
  mapping.Sets      = find(/^([2-9]\s*SETS?|[1-9]\d+\s*SETS?|SETS?|MULTIPLIER|MULT|NO\s*OF\s*SETS?|BOARDS?|RUNS?|COPIES)$/,/^[2-9]\s*SET/,/^SETS?$/);
- mapping.Description = find(/^(DESC|DESCRIPTION|NAME|COMPONENT|ITEM)$/,/DESC/);
+mapping.Description = find(/^(DESC|DESCRIPTION|NAME|COMPONENT|ITEM)$/,/DESC/);
+ mapping.Footprint   = find(/^(FOOTPRINT|FP|PACKAGE|PKG|LAND\s*PATTERN)$/,/FOOTPRINT/,/PACKAGE/);
+ mapping.Value       = find(/^(VALUE|VAL|COMPONENT\s*VALUE)$/,/^VALUE$/);
  mapping.Supplier  = find(/^(SUPPLIER|VENDOR|SOURCE|DISTRIBUTOR)$/,/SUPPLIER/,/VENDOR/);
  mapping.SupplierPN= find(/^(SUPPLIER\s*PN|SUPPLIER\s*PART|SUPP\s*PN|ORDER\s*CODE|DISTRIBUTOR\s*PN|DIST\s*PN|CPN)$/,/SUPPLIER.*PN/,/SUPPLIER.*PART/);
  mapping.Location  = find(/^(LOCATION|LOC|BIN|SHELF|STORAGE|POSITION)$/,/LOCAT/);
@@ -1825,8 +1817,7 @@ function confirmColMapping() {
 
 // ── INIT ───────────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
- cfg.anthropicKey = localStorage.getItem("nexwah_anthropic_key") || "";
-  cfg.mouserKey    = localStorage.getItem("nexwah_mouser_key") || "";
+ cfg.mouserKey    = localStorage.getItem("nexwah_mouser_key") || "";
   cfg.dkClientId   = localStorage.getItem("nexwah_dk_client_id") || "";
   cfg.dkSecret     = localStorage.getItem("nexwah_dk_secret") || "";
   populateAllLocationDropdowns();
@@ -1838,21 +1829,9 @@ window.addEventListener("DOMContentLoaded", () => {
  }).catch(() => {});
 })
 
-function skipApiKey() {
- cfg.anthropicKey=""; localStorage.setItem("nexwah_skip_api","true");
- document.getElementById("keyModal").style.display="none";
- document.getElementById("topbarStatus").textContent = "Ready";
- toast("Using free Tesseract OCR for scanning.");
-}
-function showKeyModal() { document.getElementById("keyModal").style.display="flex"; setTimeout(()=>document.getElementById("modalKeyInput").focus(),100); }
-function saveModalKey() {
- const val=document.getElementById("modalKeyInput").value.trim();
- if (!val.startsWith("sk-ant-")) { document.getElementById("modalError").style.display="block"; return; }
- cfg.anthropicKey=val; localStorage.setItem("nexwah_anthropic_key",val);
- document.getElementById("keyModal").style.display="none";
- document.getElementById("topbarStatus").textContent = "Ready";
- toast("API key saved. Welcome to NEXWAH Inventory!");
-}
+function skipApiKey() { document.getElementById("topbarStatus").textContent = "Ready"; toast("Using Kimi Vision via server for scanning."); }
+function showKeyModal() { toast("Label scanning handled via server — no key needed."); }
+function saveModalKey() {}
 
 // ── NAV ────────────────────────────────────────────────────
 function showPage(name, btn) {
@@ -1867,7 +1846,7 @@ function showPage(name, btn) {
  if (name==="settings") loadSettingsPage();
  if (name==="marketprice") {
    const noKeyWarn = document.getElementById('mpNoKeyWarn');
-   if (noKeyWarn) noKeyWarn.style.display = cfg.anthropicKey ? 'none' : 'block';
+   if (noKeyWarn) noKeyWarn.style.display = 'none';
    setTimeout(() => document.getElementById('mpSearchInput')?.focus(), 100);
  }
  if (name==="location") {
@@ -1901,8 +1880,18 @@ function syncLocSlotsFromSheet(rows) {
   Object.keys(locSlots).forEach(k => locSlots[k].sort((a,b)=>a-b));
 }
 async function sheetAppend(row) {
-  const url=`${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&row=${encodeURIComponent(JSON.stringify(row))}`;
-  const resp=await fetch(url); return await resp.text();
+  const resp = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action: 'append',
+      sheet: cfg.sheetName || 'Sheet1',
+      row: row
+    })
+  });
+  const text = await resp.text();
+  try { const j = JSON.parse(text); return j.ok ? 'ok' : text; }
+  catch(e) { return text; }
 }
 async function sheetUpdate(rowIndex,qty,date) {
   const url=`${APPS_SCRIPT_URL}?action=update&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${rowIndex}&qty=${qty}&date=${encodeURIComponent(date)}`;
@@ -1917,9 +1906,17 @@ async function sheetUpdateRowSerial(rowIndex, rowSerial) {
   const resp=await fetch(url); return await resp.text();
 }
 async function sheetAppendTx(row) {
-  const url=`${APPS_SCRIPT_URL}?action=append&sheet=Transactions&row=${encodeURIComponent(JSON.stringify(row))}`;
-  await fetch(url);
+  await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action: 'append',
+      sheet: 'Transactions',
+      row: row
+    })
+  });
 }
+
 
 // ── INVENTORY ──────────────────────────────────────────────
 function escQ(s) { return String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'"); }
@@ -1968,10 +1965,13 @@ function _renderInvRows(tbody) {
     boxLoc: getSheetLocation(r)
   }));
   data = data.filter(({r, rowSerial, boxLoc}) => {
-    const rawMatch = r.some(cell => (cell||"").toString().toUpperCase().includes(search));
-    const rowMatch = String(rowSerial||"").toUpperCase().includes(search);
-    const boxMatch = String(boxLoc||"").toUpperCase().includes(search);
-    return rawMatch || rowMatch || boxMatch;
+    // Exact match on Nexwah PN (full slot label like PB26-24)
+    const nexwahExact = String(rowSerial||"").toUpperCase() === search
+                     || String(boxLoc||"").toUpperCase() === search;
+    // Partial match only on MPN (col 2) and description (col 3)
+    const mpnMatch = String(r[2]||"").toUpperCase().includes(search);
+    const descMatch = String(r[3]||"").toUpperCase().includes(search);
+    return nexwahExact || mpnMatch || descMatch;
   });
   data.sort((a,b) => String(a.r[2]||"").localeCompare(String(b.r[2]||"")));
   if (!data.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No results found for "${search}".</td></tr>`; return; }
@@ -2026,7 +2026,59 @@ function renderDrawerInfo(mfrPn, desc, qty, location, rowSerial) {
  return [
    ["Mfr PN", mfrPn || "—"], ["Description", desc || "—"],
    ["Nexwah PN", nexwahPn], ["Quantity", `${qty || 0} units`]
- ].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("");
+ ].map(([label,val])=>`<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${val}</div></div>`).join("")
+ + `<div style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="enableDrawerEdit()">✏ Edit Details</button></div>`;
+}
+
+function enableDrawerEdit() {
+ if (!drawerRowData) return;
+ const {mfrPn, desc, qty} = drawerRowData;
+ document.getElementById("drawerInfoRows").innerHTML = `
+   <div class="info-row"><div class="info-label">Mfr PN</div><div class="info-value"><input id="editMfrPn" value="${escQ(mfrPn||'')}" style="width:100%;font-family:var(--mono);font-size:12px;padding:4px 8px;border:1px solid var(--border2);border-radius:6px;outline:none" /></div></div>
+   <div class="info-row"><div class="info-label">Description</div><div class="info-value"><input id="editDesc" value="${escQ(desc||'')}" style="width:100%;font-size:12px;padding:4px 8px;border:1px solid var(--border2);border-radius:6px;outline:none" /></div></div>
+   <div class="info-row"><div class="info-label">Quantity</div><div class="info-value"><input id="editQty" type="number" min="0" value="${qty||0}" style="width:80px;font-family:var(--mono);font-size:12px;padding:4px 8px;border:1px solid var(--border2);border-radius:6px;outline:none" /></div></div>
+   <div style="margin-top:10px;display:flex;gap:8px">
+     <button class="btn btn-primary btn-sm" onclick="saveDrawerEdit()">Save</button>
+     <button class="btn btn-secondary btn-sm" onclick="cancelDrawerEdit()">Cancel</button>
+   </div>
+   <div id="editInfoStatus" class="status-bar" style="display:none;margin-top:8px"></div>`;
+ setTimeout(() => document.getElementById("editMfrPn")?.focus(), 50);
+}
+
+function cancelDrawerEdit() {
+ if (!drawerRowData) return;
+ const {mfrPn, desc, qty, location, rowSerial} = drawerRowData;
+ document.getElementById("drawerInfoRows").innerHTML = renderDrawerInfo(mfrPn, desc, qty, location || getBaseLocationId(rowSerial), rowSerial);
+}
+
+async function saveDrawerEdit() {
+ if (!drawerRowData) return;
+ const newMfrPn = document.getElementById("editMfrPn")?.value.trim();
+ const newDesc  = document.getElementById("editDesc")?.value.trim();
+ const newQty   = parseInt(document.getElementById("editQty")?.value) || 0;
+ const statusEl = document.getElementById("editInfoStatus");
+ if (!newMfrPn) { statusEl.style.display="block"; statusEl.innerHTML="Mfr PN is required."; statusEl.className="status-bar err"; return; }
+ statusEl.style.display="block"; statusEl.innerHTML='<span class="spinner"></span>Saving…'; statusEl.className="status-bar loading";
+ try {
+   const today = todayStr();
+   await sheetUpdate(drawerRowData.rowIdx, newQty, today);
+   // Update MfrPN and Description via a dedicated action
+   const url = `${APPS_SCRIPT_URL}?action=updateFields&sheet=${encodeURIComponent(cfg.sheetName||"Sheet1")}&rowIndex=${drawerRowData.rowIdx}&mfrPn=${encodeURIComponent(newMfrPn)}&desc=${encodeURIComponent(newDesc)}`;
+   await fetch(url);
+   // Update local cache
+   drawerRowData.mfrPn = newMfrPn;
+   drawerRowData.desc  = newDesc;
+   drawerRowData.qty   = newQty;
+   document.getElementById("drawerMfrPn").textContent = newMfrPn;
+   document.getElementById("drawerDesc").textContent  = newDesc || "No description";
+   const pill = document.getElementById("drawerStockPill");
+   if (newQty<=0){pill.className="stock-pill empty";pill.textContent=`0 units — out of stock`;}
+   else if (newQty<=5){pill.className="stock-pill low";pill.textContent=`${newQty} units — low stock`;}
+   else{pill.className="stock-pill ok";pill.textContent=`${newQty} units in stock`;}
+   document.getElementById("drawerInfoRows").innerHTML = renderDrawerInfo(newMfrPn, newDesc, newQty, drawerRowData.location, drawerRowData.rowSerial);
+   _invCache = null; renderInventory();
+   toast(`Updated: ${newMfrPn}`);
+ } catch(e) { statusEl.innerHTML="Error: "+e.message; statusEl.className="status-bar err"; }
 }
 function openDrawer(rowIdx,mfrPn,suppPn,supplier,desc,location,rowSerial,qty,lastUpdated) {
  drawerRowData={rowIdx,mfrPn,suppPn,supplier,desc,location,rowSerial,qty,lastUpdated};
@@ -2284,11 +2336,9 @@ function scoreMPN(raw){const pn=raw.replace(/[^A-Z0-9\-\.\/]/g,"").toUpperCase()
 function extractMPNs(ocrText){const cleaned=ocrText.replace(/[^\x20-\x7E\n]/g,' ').replace(/\r\n/g,'\n').replace(/\r/g,'\n');const lines=cleaned.split('\n').map(l=>l.trim()).filter(Boolean);const found=new Map();const add=(raw,bonus=0,fromLabel=false)=>{const r=scoreMPN(raw);if(!r)return;r.score+=bonus;if(fromLabel){r.tier="HIGH";r.score+=60;}const ex=found.get(r.pn);if(!ex||r.score>ex.score)found.set(r.pn,r);};for(let i=0;i<lines.length;i++){const up=lines[i].toUpperCase();if(!MPN_LABEL_REGEX.test(up))continue;const afterLabel=up.replace(MPN_LABEL_REGEX,"").trim();if(afterLabel.length>=4){const firstToken=afterLabel.split(/\s+/)[0];add(firstToken,0,true);if(!afterLabel.includes(" "))add(afterLabel,0,true);}for(let offset=1;offset<=2;offset++){if(i+offset>=lines.length)break;const nextLine=lines[i+offset].toUpperCase().trim();if(MPN_LABEL_REGEX.test(nextLine))break;if(nextLine.length>=4&&nextLine.length<=32)nextLine.split(/\s+/).forEach(t=>add(t,0,offset===1));}}for(const line of lines){const m=line.match(/(?:MPN|P\/N|PART\s*NO?\.?|MODEL)\s*[:\-]\s*([A-Z0-9][A-Z0-9\-\.\/]{3,29})/i);if(m)add(m[1].toUpperCase(),20,true);}const hasHigh=[...found.values()].some(r=>r.tier==="HIGH");if(!hasHigh){for(const line of lines){const up=line.toUpperCase();if([...NOISE_STARTS].some(n=>up.startsWith(n)))continue;up.split(/[\s,;|()\[\]]+/).forEach(t=>{if(t.length>=4)add(t);});}}const tierOrder={HIGH:0,MED:1,LOW:2};return[...found.values()].sort((a,b)=>tierOrder[a.tier]-tierOrder[b.tier]||b.score-a.score).slice(0,6);}
 
 async function extractWithClaude(dataUrl){
- if(cfg.anthropicKey){
-   setCamStatus('<span class="spinner"></span>Reading label with Claude Vision…',"loading");
-   try{const result=await tryClaudeVision(dataUrl);if(result){await handleScanResult(result,dataUrl,"Claude Vision");return;}}
-   catch(err){setCamStatus('<span class="spinner"></span>Claude unavailable — trying Google Vision…',"warn");await new Promise(r=>setTimeout(r,600));}
- }
+ setCamStatus('<span class="spinner"></span>Reading label with Kimi Vision…',"loading");
+ try{const result=await tryClaudeVision(dataUrl);if(result){await handleScanResult(result,dataUrl,"Kimi Vision");return;}}
+ catch(err){setCamStatus('<span class="spinner"></span>Kimi Vision unavailable — trying Google Vision…',"warn");await new Promise(r=>setTimeout(r,600));}
  setCamStatus('<span class="spinner"></span>Trying Google Vision…',"loading");
  try{const result=await tryGoogleVision(dataUrl);if(result){await handleScanResult(result,dataUrl,"Google Vision");return;}}
  catch(err){setCamStatus('<span class="spinner"></span>Google Vision unavailable — trying Tesseract…',"warn");await new Promise(r=>setTimeout(r,600));}
@@ -2298,7 +2348,7 @@ async function extractWithClaude(dataUrl){
  catch(err){setCamStatus("OCR failed: "+err.message,"err");}
 }
 async function tryGoogleVision(dataUrl){const base64=dataUrl.split(",")[1];const resp=await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({requests:[{image:{content:base64},features:[{type:"TEXT_DETECTION",maxResults:1},{type:"DOCUMENT_TEXT_DETECTION",maxResults:1}],imageContext:{languageHints:["en","zh"]}}]})});const data=await resp.json();if(data.error)throw new Error(data.error.message);const response=data.responses[0];const fullText=(response.fullTextAnnotation&&response.fullTextAnnotation.text)||(response.textAnnotations&&response.textAnnotations[0]&&response.textAnnotations[0].description)||"";if(!fullText)return null;const candidates=extractMPNs(fullText);if(!candidates.length)return null;const top=candidates[0];let supplier="Unknown";if(fullText.toUpperCase().includes("DIGIKEY")||fullText.toUpperCase().includes("DIGI-KEY"))supplier="DigiKey";else if(fullText.toUpperCase().includes("MOUSER"))supplier="Mouser";return{mfrPartNumber:top.pn,supplierPartNumber:"",supplier,description:"",category:"Other"};}
-async function tryClaudeVision(dataUrl){const base64=dataUrl.split(",")[1];const prompt=`You are an electronics label reader. Return ONLY a raw JSON object, no markdown:\n{"mfrPartNumber":"manufacturer part number","supplierPartNumber":"supplier order PN","supplier":"DigiKey or Mouser or Octopart or Unknown","description":"component description if visible, else empty string","category":"one of: Resistor, Capacitor, Inductor, IC, Transistor, Diode, Connector, Crystal, LED, Relay, Fuse, Other"}\nSet mfrPartNumber to NOT_FOUND if not visible.`;const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":cfg.anthropicKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:300,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:base64}},{type:"text",text:prompt}]}]})});const data=await resp.json();if(!resp.ok)throw new Error(data?.error?.message||"Claude API error");const raw=(data.content||[]).map(b=>b.text||"").join("").trim();const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());if(!parsed.mfrPartNumber||parsed.mfrPartNumber==="NOT_FOUND")return null;return parsed;}
+async function tryClaudeVision(dataUrl){const base64=dataUrl.split(",")[1];const prompt=`You are an electronics label reader. Return ONLY a raw JSON object, no markdown:\n{"mfrPartNumber":"manufacturer part number","supplierPartNumber":"supplier order PN","supplier":"DigiKey or Mouser or Octopart or Unknown","description":"component description if visible, else empty string","category":"one of: Resistor, Capacitor, Inductor, IC, Transistor, Diode, Connector, Crystal, LED, Relay, Fuse, Other"}\nSet mfrPartNumber to NOT_FOUND if not visible.`;const resp=await fetch(APPS_SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"visionScan",imageBase64:base64,prompt:prompt})});const data=await resp.json();if(!data.ok)throw new Error(data.error||"Vision scan failed");const raw=data.reply||"";const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());if(!parsed.mfrPartNumber||parsed.mfrPartNumber==="NOT_FOUND")return null;return parsed;}
 async function tryTesseract(dataUrl){if(!window.Tesseract){await new Promise((resolve,reject)=>{const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";script.onload=resolve;script.onerror=reject;document.head.appendChild(script);});}setCamStatus('<span class="spinner"></span>Tesseract OCR running…',"loading");const processedUrl=await preprocessImageForOCR(dataUrl);const worker=await Tesseract.createWorker("eng");await worker.setParameters({tessedit_pageseg_mode:"6",tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/"});const{data:{text}}=await worker.recognize(processedUrl);await worker.terminate();const lines=text.toUpperCase().split("\n").map(l=>l.trim()).filter(l=>l.length>3);const fullText=lines.join(" ");const patterns=[/\b(\d{3}-\d{4,6}-\d-[A-Z]{2})\b/,/\b(\d{3}-[A-Z0-9]{6,})\b/,/\b([A-Z]{2,4}\d{2,}[A-Z0-9]{4,})\b/,/\b([A-Z]{2,}[0-9]{2,}[A-Z0-9]*[-][A-Z0-9]+)\b/,/\b([A-Z0-9]{6,})\b/];let bestMatch=null;for(const pattern of patterns){const m=fullText.match(pattern);if(m){bestMatch=m[1];break;}}if(!bestMatch)return null;let supplier="Unknown";if(fullText.includes("DIGIKEY")||fullText.includes("DIGI-KEY"))supplier="DigiKey";else if(fullText.includes("MOUSER"))supplier="Mouser";return{mfrPartNumber:bestMatch,supplierPartNumber:"",supplier,description:""};}
 async function preprocessImageForOCR(dataUrl){return new Promise(resolve=>{const img=new Image();img.onload=()=>{const canvas=document.createElement("canvas");canvas.width=img.width*2;canvas.height=img.height*2;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.drawImage(img,0,0,canvas.width,canvas.height);const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);const d=imageData.data;for(let i=0;i<d.length;i+=4){let gray=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];gray=gray>128?255:0;d[i]=d[i+1]=d[i+2]=gray;}ctx.putImageData(imageData,0,0);resolve(canvas.toDataURL("image/png"));};img.src=dataUrl;});}
 
@@ -2513,10 +2563,7 @@ function escapeHtmlScan(value){return String(value??"").replaceAll("&","&amp;").
 
 // ── SETTINGS ───────────────────────────────────────────────
 function loadSettingsPage() {
-  const hasKey=!!cfg.anthropicKey;
-  const keyInput=document.getElementById("settingsApiKey"), keyStatusEl=document.getElementById("apiKeyStatus"), statusEl=document.getElementById("settingsStatus");
-  if (keyInput) keyInput.value=hasKey?cfg.anthropicKey:"";
-  if (keyStatusEl) keyStatusEl.innerHTML=hasKey?`<div class="alert alert-success">API key saved. Claude Vision scanning enabled.</div>`:`<div class="alert alert-warn">No API key set. Using free OCR (Google Vision &#x2192; Tesseract fallback).</div>`;
+  const statusEl=document.getElementById("settingsStatus");
   // Populate distributor key fields
   const mki=document.getElementById("settingsMouserKey"); if(mki) mki.value=cfg.mouserKey||"";
   const dki=document.getElementById("settingsDkClientId"); if(dki) dki.value=cfg.dkClientId||"";
@@ -2531,10 +2578,10 @@ function loadSettingsPage() {
   }
   setBadge("mouserKeyBadge", !!cfg.mouserKey);
   setBadge("digikeyKeyBadge", !!(cfg.dkClientId && cfg.dkSecret));
-  if (statusEl) statusEl.innerHTML=`Anthropic Key: <b>${hasKey?"Saved":"Not set"}</b><br>Mouser API: <b>${cfg.mouserKey?"Saved":"Not set"}</b><br>DigiKey API: <b>${(cfg.dkClientId&&cfg.dkSecret)?"Saved":"Not set"}</b><br>Sheet: <b>${cfg.sheetName||"Sheet1"}</b>`;
+  if (statusEl) statusEl.innerHTML=`Label Scanning: <b>Kimi Vision (server)</b><br>Mouser API: <b>${cfg.mouserKey?"Saved":"Not set"}</b><br>DigiKey API: <b>${(cfg.dkClientId&&cfg.dkSecret)?"Saved":"Not set"}</b><br>Sheet: <b>${cfg.sheetName||"Sheet1"}</b>`;
 }
-function saveSettingsKey(){const val=document.getElementById("settingsApiKey").value.trim();const msgEl=document.getElementById("settingsKeyMsg");if(!val.startsWith("sk-ant-")){msgEl.style.display="block";msgEl.innerHTML="Key must start with sk-ant-";msgEl.className="status-bar err";return;}cfg.anthropicKey=val;localStorage.setItem("nexwah_anthropic_key",val);msgEl.style.display="block";msgEl.innerHTML="Key saved.";msgEl.className="status-bar ok";toast("API key saved.");loadSettingsPage();}
-function removeSettingsKey(){cfg.anthropicKey="";localStorage.removeItem("nexwah_anthropic_key");document.getElementById("settingsApiKey").value="";const msgEl=document.getElementById("settingsKeyMsg");msgEl.style.display="block";msgEl.innerHTML="Key removed.";msgEl.className="status-bar warn";toast("API key removed.");loadSettingsPage();}
+function saveSettingsKey(){}
+function removeSettingsKey(){}
 function saveDistKey(dist) {
   const msgEl=document.getElementById("distKeyMsg"); msgEl.style.display="block";
   if (dist==="mouser") {
@@ -2610,31 +2657,88 @@ async function runBomCheck(mapping,rows){
     const allOk=notFound===0&&notEnough===0;
     document.getElementById("bomResults").innerHTML=`<div class="card"><div class="card-title">Check Complete${setsUsed?' <span style="font-size:11px;color:var(--muted);font-weight:400">(qty × sets)</span>':''}</div><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Status</th><th style="text-align:right;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Parts</th></tr></thead><tbody><tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 12px;color:var(--text)">In Stock</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${inStock}</td></tr><tr style="border-bottom:1px solid var(--border)"><td style="padding:9px 12px;color:var(--text)">Not Enough</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${notEnough}</td></tr><tr><td style="padding:9px 12px;color:var(--text)">Not Found</td><td style="padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">${notFound}</td></tr></tbody></table></div>`;
     if(bomPendingDispatch.length>0){document.getElementById("bomConfirmPanel").style.display="block";document.getElementById("bomConfirmSummary").innerHTML=`<b>${bomPendingDispatch.length}</b> part(s) can be deducted from stock:<br><span style="font-family:var(--mono);font-size:12px">${bomPendingDispatch.map(i=>`${i.pn} × ${i.qty}`).join("<br>")}</span>`;document.getElementById("bomConfirmStatus").style.display="none";}else{document.getElementById("bomConfirmPanel").style.display="none";}
-    // Show NOT IN INVENTORY items with recommendations inline
-    const notFoundWithRecs = items.filter(i => i._row.__status === "NOT IN INVENTORY" && i._row.__recs && i._row.__recs.length > 0);
-    if (notFoundWithRecs.length > 0) {
-      const recRows = notFoundWithRecs.map(item => {
-        const recsHtml = item._row.__recs.map(loc =>
-          `<span style="display:inline-block;padding:2px 8px;background:var(--accent-light);border:1px solid #c3d9ff;border-radius:6px;font-family:var(--mono);font-size:11px;color:var(--accent);margin-right:4px">${escHtml(loc)}</span>`
-        ).join('');
-        return `<tr><td class="mono" style="font-size:12px;padding:8px 12px">${escHtml(item.pn)}</td><td style="padding:8px 12px">${recsHtml}</td></tr>`;
-      }).join('');
-      document.getElementById("bomResults").innerHTML += `<div class="card" style="margin-top:14px">
-        <div class="card-title">Suggested Locations for Not Found Parts</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Matched by footprint and value from your inventory.</div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="border-bottom:1px solid var(--border)">
-            <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Part Number</th>
-            <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)">Suggested Locations</th>
-          </tr></thead><tbody>${recRows}</tbody>
-        </table></div>`;
+    // Fetch live prices in background for NOT IN INVENTORY parts — store on row for export
+    const notFoundItems = items.filter(i => i._row.__status === "NOT IN INVENTORY");
+    if (notFoundItems.length > 0) {
+      const priceStatusEl = document.getElementById("bomPriceStatus");
+      const exportBtn = document.getElementById("bomExportBtn");
+      if (priceStatusEl) priceStatusEl.innerHTML = `<span class="spinner"></span> Fetching live prices for ${notFoundItems.length} part(s)…`;
+      if (exportBtn) exportBtn.disabled = true;
+
+      let fetched = 0;
+      const fetchAll = notFoundItems.map(async (item) => {
+        const result = await fetchBomPartPriceForExport(item.pn);
+        item._row.__priceSgd     = result.priceSgd;
+        item._row.__dist         = result.dist;
+        item._row.__orderUrl     = result.url;
+        item._row.__mouserSgd    = result.mouserPriceSgd;
+        item._row.__dkSgd        = result.dkPriceSgd;
+        item._row.__mouserUrl    = result.mouserUrl;
+        item._row.__dkUrl        = result.dkUrl;
+        fetched++;
+        if (priceStatusEl) priceStatusEl.innerHTML = `<span class="spinner"></span> Fetching prices… ${fetched}/${notFoundItems.length}`;
+      });
+
+      Promise.all(fetchAll).then(() => {
+        if (priceStatusEl) priceStatusEl.innerHTML = `✓ Live prices fetched — included in export`;
+        if (exportBtn) exportBtn.disabled = false;
+      });
     }
     document.getElementById("bomExportPanel").style.display="block";
     document.getElementById("bomStatus").innerHTML=allOk?`All ${totalParts} parts available.`:`⚠ ${totalParts} parts checked — download report for full details.`;
     document.getElementById("bomStatus").className="status-bar "+(allOk?"ok":"warn");
   }catch(e){document.getElementById("bomStatus").innerHTML="Error: "+e.message;document.getElementById("bomStatus").className="status-bar err";}
 }
-function exportBomReport(){if(!_bomOriginalRows.length){toast("No results to export.");return;}try{const wb=XLSX.utils.book_new();const exportHeaders=[..._bomOriginalHeaders,"Stock Status","Stock Available","Qty Needed","Shortage","Location","Suggested Locations"];const exportData=[exportHeaders];_bomOriginalRows.forEach(row=>{const vals=_bomOriginalHeaders.map(h=>row[h]||"");if(row.__status!==undefined){vals.push(row.__status,row.__stock,row.__needed,row.__shortage>0?row.__shortage:"",row.__location,row.__recs?row.__recs.join(', '):'');}else{vals.push("","","","","");}exportData.push(vals);});const ws=XLSX.utils.aoa_to_sheet(exportData);XLSX.utils.book_append_sheet(wb,ws,"BOM Check");XLSX.writeFile(wb,"BOM_Check_"+todayStr()+".xlsx");toast("Report downloaded.");}catch(e){toast("Export failed: "+e.message);}}
+function exportBomReport(){
+  if(!_bomOriginalRows.length){toast("No results to export.");return;}
+  try{
+    const wb=XLSX.utils.book_new();
+    const exportHeaders=[..._bomOriginalHeaders,"Stock Status","Stock Available","Qty Needed","Shortage","Location","Suggested Locations","Best Price SGD","Order"];
+    const exportData=[exportHeaders];
+    _bomOriginalRows.forEach(row=>{
+      const vals=_bomOriginalHeaders.map(h=>row[h]||"");
+      if(row.__status!==undefined){
+        const recsStr=row.__recs?row.__recs.map(r=>typeof r==='object'?r.loc:r).join(', '):'';
+        vals.push(
+          row.__status,
+          row.__stock,
+          row.__needed,
+          row.__shortage>0?row.__shortage:"",
+          row.__location,
+          recsStr,
+          row.__priceSgd != null ? row.__priceSgd : "",
+          row.__orderUrl ? (row.__dist||"Order") : ""
+        );
+      } else {
+        vals.push("","","","","","","","");
+      }
+      exportData.push(vals);
+    });
+    const ws=XLSX.utils.aoa_to_sheet(exportData);
+
+    // Order column = last col — clickable link showing distributor name
+    const orderColIdx = exportHeaders.length - 1;
+    const distColor = { Mouser:'15803D', DigiKey:'1D4ED8' };
+    _bomOriginalRows.forEach((row, ri) => {
+      if(!row.__orderUrl) return;
+      const cellAddr = XLSX.utils.encode_cell({r: ri+1, c: orderColIdx});
+      const color = distColor[row.__dist] || '1A56DB';
+      ws[cellAddr] = {
+        t:'s', v: row.__dist || 'Order',
+        l:{ Target: row.__orderUrl },
+        s:{ font:{ color:{rgb: color}, underline:true, bold:true } }
+      };
+    });
+
+    ws['!cols'] = exportHeaders.map((_,i) => ({
+      wch: i < _bomOriginalHeaders.length ? 18 : 16
+    }));
+
+    XLSX.utils.book_append_sheet(wb,ws,"BOM Check");
+    XLSX.writeFile(wb,"BOM_Check_"+todayStr()+".xlsx");
+    toast("Report downloaded.");
+  }catch(e){toast("Export failed: "+e.message);}
+}
 async function confirmOrderDispatch(){const statusEl=document.getElementById("bomConfirmStatus");statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Deducting stock…';statusEl.className="status-bar loading";const today=todayStr();try{for(const item of bomPendingDispatch){const newQty=item.currentQty-item.qty;await sheetUpdate(item.rowIdx,newQty,today);await sheetAppendTx([today,item.pn,"Order Check","Use",item.qty,item.currentQty,newQty,"Order dispatch"]);}statusEl.innerHTML=`Stock deducted for ${bomPendingDispatch.length} parts.`;statusEl.className="status-bar ok";toast("Order dispatched.");bomPendingDispatch=[];document.getElementById("bomConfirmPanel").style.display="none";}catch(e){statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";}}
 function cancelOrderDispatch(){document.getElementById("bomConfirmPanel").style.display="none";bomPendingDispatch=[];}
 function downloadSampleCSV(){downloadFile("sample_order_bom.csv","text/csv","Part Number,Quantity,Description\nSN74LVC1G08DCKR,100,IC Gate AND\nGRM188R71H104KA93D,500,Cap 100nF 50V\n");}
@@ -2710,7 +2814,7 @@ document.head.appendChild(mpQtyStyle);
 const ORDERS_SHEET = "Projects";
 let _ordersCache = null;
 let _projFilter  = "all";
-const ORDER_COLS = { date:0,orderId:1,company:2,contact:3,description:4,qty:5,status:6,dueDate:7,value:8,notes:9,tracking:10 };
+const ORDER_COLS = { date:0, projectName:1, partNumber:2, description:3, qty:4, location:5, row:6, nexwahPn:7, source:8, cost:9, stockLevel:10, image:11, memo:12 };
 
 function setProjFilter(f,btn){_projFilter=f;document.querySelectorAll(".proj-filter-btn").forEach(b=>b.classList.remove("active"));if(btn)btn.classList.add("active");renderOrders();}
 
@@ -2729,28 +2833,30 @@ async function renderOrders(){
     const search=(document.getElementById("projSearch")?.value||"").trim().toLowerCase();
     const C=ORDER_COLS;
     let data=rows.slice(1).map((r,i)=>({r,origIdx:i+2})).filter(({r})=>{
-      if(!r[C.orderId]&&!r[C.company])return false;
-      const status=(r[C.status]||"new").toLowerCase();
-      const matchFilter=_projFilter==="all"||status===_projFilter;
-      const matchSearch=!search||[r[C.orderId],r[C.company],r[C.contact],r[C.description],r[C.notes],r[C.tracking]].some(v=>(v||"").toLowerCase().includes(search));
+     if(!r[C.projectName]&&!r[C.location])return false;
+const status=(r[C.row]||"new").toLowerCase();
+const matchFilter=_projFilter==="all"||status===_projFilter;
+const matchSearch=!search||[r[C.projectName],r[C.location],r[C.source],r[C.description],r[C.partNumber],r[C.memo]].some(v=>String(v||"").toLowerCase().includes(search));
       return matchFilter&&matchSearch;
     });
     data.sort((a,b)=>(b.r[C.date]||"").localeCompare(a.r[C.date]||""));
     if(!data.length){tbody.innerHTML=`<tr><td colspan="8" class="empty-state">${search?"No orders match your search.":"No orders yet — click + New Order to add one."}</td></tr>`;return;}
     const statusLabels={new:"New",pending:"Pending",progress:"In Progress",completed:"Completed",cancelled:"Cancelled"};
     tbody.innerHTML=data.map(({r,origIdx})=>{
-      const status=(r[C.status]||"new").toLowerCase();
-      const tracking=escHtml(r[C.tracking]||"");
-      return `<tr class="inv-row-clickable" onclick="openOrderDrawer(${origIdx})">
-        <td class="mono" style="font-weight:600">${escHtml(r[C.orderId]||"—")}</td>
-        <td style="font-weight:500">${escHtml(r[C.company]||"—")}</td>
-        <td style="color:var(--muted);font-size:12px">${escHtml(r[C.contact]||"")}</td>
-        <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r[C.description]||"—")}</td>
-        <td><span class="order-status ${status}">${statusLabels[status]||status}</span></td>
-        <td class="mono" style="font-size:12px">${tracking?`<span onclick="openTrackModal('${tracking}');event.stopPropagation()" style="color:var(--accent);cursor:pointer;text-decoration:underline dotted">${tracking}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
-        <td style="color:var(--muted);font-size:12px">${r[C.date]?formatDate(r[C.date]):"—"}</td>
-        <td onclick="event.stopPropagation()"><button class="btn btn-secondary btn-sm" onclick="openOrderDrawer(${origIdx})">Edit</button></td>
-      </tr>`;
+  const status=(r[6]||"new").toLowerCase();
+      const tracking=escHtml(r[10]||"");
+  return `<tr class="inv-row-clickable" onclick="openOrderDrawer(${origIdx})">
+  <td style="color:var(--muted);font-size:12px">${r[0]?formatDate(r[0]):"—"}</td>
+  <td style="font-weight:600">${escHtml(r[1]||"—")}</td>
+  <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r[3]||"—")}</td>
+  <td style="font-size:12px;color:var(--muted)">${escHtml(r[7]||"—")}</td>
+  <td class="mono" style="font-size:12px">${escHtml(r[2]||"—")}</td>
+  <td style="font-family:var(--mono);font-size:12px">${escHtml(r[4]||"—")}</td>
+  <td style="font-weight:500">${escHtml(r[5]||"—")}</td>
+  <td class="mono" style="font-size:12px">${tracking?`<span onclick="openTrackModal('${tracking}');event.stopPropagation()" style="color:var(--accent);cursor:pointer;text-decoration:underline dotted">${tracking}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+  <td><span class="order-status ${status}">${statusLabels[status]||status}</span></td>
+  <td onclick="event.stopPropagation()"><button class="btn btn-secondary btn-sm" onclick="openOrderDrawer(${origIdx})">Edit</button></td>
+</tr>`;
     }).join("");
   }catch(e){tbody.innerHTML=`<tr><td colspan="8" class="empty-state" style="color:var(--error)">Could not load orders: ${e.message}</td></tr>`;}
 }
@@ -2763,25 +2869,23 @@ function openOrderDrawer(rowIdx){
   document.getElementById("orderDeleteBtn").style.display=isNew?"none":"";
   document.getElementById("orderDrawerStatus").style.display="none";
   if(isNew){
-    const existing=(_ordersCache||[]).slice(1).map(r=>r[ORDER_COLS.orderId]||"").filter(id=>/^ORD-\d+$/.test(id)).map(id=>parseInt(id.replace("ORD-",""))).filter(n=>!isNaN(n));
-    const nextNum=existing.length?Math.max(...existing)+1:1;
-    document.getElementById("orderIdInput").value="ORD-"+String(nextNum).padStart(3,"0");
+    document.getElementById("orderIdInput").value="";
     document.getElementById("orderStatusInput").value="new";
-    ["orderCompanyInput","orderContactInput","orderDescInput","orderQtyInput","orderDueDateInput","orderValueInput","orderNotesInput","orderTrackingInput"].forEach(id=>document.getElementById(id).value="");
-    document.getElementById("orderDateInput").value=todayStr();
+ ["orderCompanyInput","orderContactInput","orderDescInput","orderDesignatorInput","orderPartNumberInput","orderQtyInput","orderDueDateInput","orderValueInput","orderNotesInput","orderTrackingInput"].forEach(id=>document.getElementById(id).value="");
   }else{
     const rows=_ordersCache||[];const r=rows[rowIdx-1];if(!r)return;const C=ORDER_COLS;
-    document.getElementById("orderIdInput").value=r[C.orderId]||"";
-    document.getElementById("orderStatusInput").value=(r[C.status]||"new").toLowerCase();
-    document.getElementById("orderCompanyInput").value=r[C.company]||"";
-    document.getElementById("orderContactInput").value=r[C.contact]||"";
-    document.getElementById("orderDescInput").value=r[C.description]||"";
-    document.getElementById("orderQtyInput").value=r[C.qty]||"";
-    document.getElementById("orderDateInput").value=r[C.date]||"";
-    document.getElementById("orderDueDateInput").value=r[C.dueDate]||"";
-    document.getElementById("orderValueInput").value=r[C.value]||"";
-    document.getElementById("orderNotesInput").value=r[C.notes]||"";
-    document.getElementById("orderTrackingInput").value=r[C.tracking]||"";
+    document.getElementById("orderIdInput").value        = r[1]||"";
+    document.getElementById("orderStatusInput").value    = (r[6]||"new").toLowerCase();
+    document.getElementById("orderCompanyInput").value   = r[5]||"";
+    document.getElementById("orderContactInput").value   = r[8]||"";
+    document.getElementById("orderDescInput").value      = r[3]||"";
+    document.getElementById("orderQtyInput").value       = r[4]||"";
+    document.getElementById("orderDateInput").value      = r[0]||"";
+    document.getElementById("orderDueDateInput").value   = r[7]||"";
+    document.getElementById("orderValueInput").value     = r[9]||"";
+    document.getElementById("orderNotesInput").value     = r[12]||"";
+    document.getElementById("orderTrackingInput").value  = r[10]||"";
+    document.getElementById("orderPartNumberInput").value= r[2]||"";
   }
   document.getElementById("orderDrawerOverlay").classList.add("open");
   document.getElementById("orderDrawer").classList.add("open");
@@ -2799,13 +2903,28 @@ async function saveOrder(){
   if(!company){statusEl.style.display="block";statusEl.innerHTML="Company name is required.";statusEl.className="status-bar err";return;}
   if(!desc){statusEl.style.display="block";statusEl.innerHTML="Description is required.";statusEl.className="status-bar err";return;}
   statusEl.style.display="block";statusEl.innerHTML='<span class="spinner"></span>Saving…';statusEl.className="status-bar loading";
-  const row=[document.getElementById("orderDateInput").value||todayStr(),document.getElementById("orderIdInput").value.trim(),company,document.getElementById("orderContactInput").value.trim(),desc,document.getElementById("orderQtyInput").value.trim(),document.getElementById("orderStatusInput").value,document.getElementById("orderDueDateInput").value,document.getElementById("orderValueInput").value.trim(),document.getElementById("orderNotesInput").value.trim(),document.getElementById("orderTrackingInput").value.trim()];
+const row=[
+    document.getElementById("orderDateInput").value||todayStr(),
+    document.getElementById("orderIdInput").value.trim(),
+    document.getElementById("orderPartNumberInput").value.trim(),
+    document.getElementById("orderDescInput").value.trim(),
+    document.getElementById("orderQtyInput").value.trim(),
+    document.getElementById("orderCompanyInput").value.trim(),
+    document.getElementById("orderStatusInput").value,
+    document.getElementById("orderDueDateInput").value,
+    document.getElementById("orderContactInput").value.trim(),
+    document.getElementById("orderValueInput").value.trim(),
+    document.getElementById("orderTrackingInput").value.trim(),
+    "",
+    document.getElementById("orderNotesInput").value.trim()
+  ];
   try{
-    const url=isNew?`${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(ORDERS_SHEET)}&row=${encodeURIComponent(JSON.stringify(row))}`:
-      `${APPS_SCRIPT_URL}?action=updateRow&sheet=${encodeURIComponent(ORDERS_SHEET)}&rowIndex=${rowIdx}&row=${encodeURIComponent(JSON.stringify(row))}`;
+    const url=isNew
+      ?`${APPS_SCRIPT_URL}?action=append&sheet=${encodeURIComponent(ORDERS_SHEET)}&row=${encodeURIComponent(JSON.stringify(row))}`
+      :`${APPS_SCRIPT_URL}?action=updateRow&sheet=${encodeURIComponent(ORDERS_SHEET)}&rowIndex=${rowIdx}&row=${encodeURIComponent(JSON.stringify(row))}`;
     const res=await(await fetch(url)).text();
     if(res.trim()!=="ok"&&isNew)throw new Error(res);
-    toast(`Order ${isNew?"saved":"updated"}: ${row[1]||company}`);
+    toast(`${isNew?"Saved":"Updated"}: ${row[1]||company}`);
     _ordersCache=null;statusEl.innerHTML="Saved.";statusEl.className="status-bar ok";
     setTimeout(closeOrderDrawer,700);renderOrders();
   }catch(e){statusEl.innerHTML="Error: "+e.message;statusEl.className="status-bar err";}
@@ -2833,6 +2952,7 @@ function detectCarrier(raw){
   if(/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(t)){const s=t.slice(-2);const names={SG:"SingPost",GB:"Royal Mail",NL:"PostNL",CN:"China Post/EMS",US:"USPS",MY:"Pos Malaysia",DE:"Deutsche Post"};const urls={SG:`https://www.singpost.com/track-items#${t}`,GB:`https://www.royalmail.com/track-your-item#/tracking-results/${t}`,CN:`https://www.ems.com.cn/queryList?mailNo=${t}`};return{name:names[s]||"Postal ("+s+")",desc:"International postal",url:urls[s]||`https://track.aftership.com/${t}`};}
   if(/^JT/i.test(t))return{name:"J&T Express",desc:"J&T Express (SEA)",url:`https://www.jtexpress.sg/index/query/gzquery.html?bills=${t}`};
   if(/^(NNVSG|NNVMY|NV[A-Z]{2})/i.test(t))return{name:"Ninja Van",desc:"Ninja Van (SEA)",url:`https://www.ninjavan.co/en-sg/tracking?id=${t}`};
+  if(/^\d{12}$/.test(t)||/^\d{15}$/.test(t)||/^\d{20}$/.test(t))return{name:"FedEx",desc:"Federal Express",url:`https://www.fedex.com/fedextrack/?trknbr=${t}`};
   if(/^\d{10}$/.test(t))return{name:"DHL Express",desc:"DHL Express",url:`https://www.dhl.com/sg-en/home/tracking.html?tracking-id=${t}&submit=1`};
   if(/^SF\d+/i.test(t))return{name:"SF Express",desc:"SF Express",url:`https://www.sf-international.com/sg/en/dynamic_function/waybill/#search/bill_numbers=${t}`};
   return{name:"Unknown carrier",desc:"Using universal tracker",url:`https://track.aftership.com/${t}`};
@@ -2852,52 +2972,355 @@ function openTrackModal(trackingNum){
 }
 function closeTrackModal(){document.getElementById("trackModalOverlay").style.display="none";}
 
-// ── BOM RECOMMENDATIONS ────────────────────────────────────
-function extractFootprintFromText(text) {
-  const s = String(text||'').toUpperCase();
-  const m = s.match(/\b(01005|0201|0402|0603|0805|1206|1210|1812|2010|2512|SOT-?23[A-Z0-9]*|SOT-?323|SOD-?123|SOD-?323|SC-?70|SC-?88|SMA\b|SMB\b|SMC\b|DO-?214[A-Z]?|TO-?220|TO-?252|TO-?263)\b/);
-  return m ? m[1].replace(/-/g,'').toUpperCase() : '';
+// ── BOM PART PRICE FETCH (for export) ─────────────────────
+let _usdSgdRate = null;
+async function getUsdSgdRate() {
+  if (_usdSgdRate) return _usdSgdRate;
+  // Try a CORS-friendly source; fall back to a fixed rate if blocked
+  const sources = [
+    () => fetch('https://open.er-api.com/v6/latest/USD').then(r=>r.json()).then(d=>d?.rates?.SGD),
+    () => fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json').then(r=>r.json()).then(d=>d?.usd?.sgd),
+  ];
+  for (const fn of sources) {
+    try {
+      const rate = await fn();
+      if (rate && rate > 1) { _usdSgdRate = rate; return rate; }
+    } catch(e) {}
+  }
+  _usdSgdRate = 1.35; // fallback if all sources blocked
+  return _usdSgdRate;
 }
 
+async function fetchBomPartPriceForExport(partNumber) {
+  const searchFallback = {
+    priceSgd: null, dist: 'Mouser',
+    url: `https://www.mouser.sg/c/?q=${encodeURIComponent(partNumber)}`
+  };
+  const results = [];
+
+  // ── MOUSER ────────────────────────────────────────────────
+  if (cfg.mouserKey) {
+    try {
+      // countryCode=SG&currency=SGD → API returns SGD prices directly, no conversion needed
+      const mResp = await fetch(`https://api.mouser.com/api/v1/search/keyword?apiKey=${cfg.mouserKey}&countryCode=SG&languageCode=EN&currency=SGD`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ SearchByKeywordRequest: { keyword: partNumber, records: 3, startingRecord: 0, searchWithSPNsFirst: 'N' } })
+      });
+      const mData = await mResp.json();
+      const mParts = mData?.SearchResults?.Parts || [];
+      const mPart = mParts.find(p => (p.ManufacturerPartNumber||'').toUpperCase() === partNumber.toUpperCase()) || mParts[0];
+      if (mPart) {
+        const breaks = (mPart.PriceBreaks || [])
+          .map(pb => ({ qty: parseInt(pb.Quantity||'1'), price: parseFloat((pb.Price||'0').replace(/[^0-9.]/g,'')) }))
+          .filter(pb => pb.price > 0)
+          .sort((a,b) => a.qty - b.qty); // sort ascending by qty
+        // Use price at qty 1 = first break (lowest qty = highest unit price)
+        const priceSgd = breaks.length ? breaks[0].price : null;
+        const stock = parseInt((mPart.Availability||'').replace(/[^0-9]/g,'')||'0');
+        const url = mPart.ProductDetailUrl
+          ? (mPart.ProductDetailUrl.startsWith('http') ? mPart.ProductDetailUrl : 'https://www.mouser.sg'+mPart.ProductDetailUrl)
+          : `https://www.mouser.sg/c/?q=${encodeURIComponent(partNumber)}`;
+        results.push({ dist:'Mouser', priceSgd, url, stock });
+      }
+    } catch(e) { console.warn('Mouser price fetch failed:', e.message); }
+  }
+
+  // ── DIGIKEY ───────────────────────────────────────────────
+  if (cfg.dkClientId && cfg.dkSecret) {
+    try {
+      const tokenResp = await fetch('https://api.digikey.com/v1/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=client_credentials&client_id=${encodeURIComponent(cfg.dkClientId)}&client_secret=${encodeURIComponent(cfg.dkSecret)}`
+      });
+      const tokenData = await tokenResp.json();
+      const token = tokenData.access_token;
+      if (!token) throw new Error(tokenData.error_description || 'DigiKey auth failed');
+
+      const dkHeaders = {
+        'Authorization': `Bearer ${token}`,
+        'X-DIGIKEY-Client-Id': cfg.dkClientId,
+        'X-DIGIKEY-Locale-Site': 'US',
+        'X-DIGIKEY-Locale-Currency': 'USD',
+        'X-DIGIKEY-Locale-Language': 'en',
+        'Content-Type': 'application/json'
+      };
+      const dkSearchResp = await fetch('https://api.digikey.com/products/v4/search/keyword', {
+        method: 'POST',
+        headers: dkHeaders,
+        body: JSON.stringify({
+          keywords: partNumber, limit: 10, offset: 0,
+          filterOptionsRequest: { manufacturerFilter: [], categoryFilter: [], statusFilter: [{ Id: 0, Value: 'Active' }] },
+          sort: { sortOption: 'SortByUnitPrice', direction: 'Ascending', sortParameterId: 0 },
+          requestedQuantity: 1
+        })
+      });
+      if (dkSearchResp.ok) {
+        const dkData = await dkSearchResp.json();
+        const products = dkData?.Products || dkData?.products || [];
+        const dkPart = products.find(p =>
+          (p.ManufacturerProductNumber||p.manufacturerProductNumber||'').toUpperCase() === partNumber.toUpperCase()
+        ) || products[0] || null;
+
+        if (dkPart) {
+          const pricing = dkPart.StandardPricing || dkPart.standardPricing ||
+            (dkPart.UnitPrice ? [{ BreakQuantity:1, UnitPrice: dkPart.UnitPrice }] : []);
+          const breaks = pricing
+            .map(pb => ({ qty: pb.BreakQuantity || pb.breakQuantity || 1, price: pb.UnitPrice || pb.unitPrice || 0 }))
+            .filter(pb => pb.price > 0)
+            .sort((a,b) => a.qty - b.qty); // ascending by qty
+          // Use qty-1 price = first break
+          const priceUsd = breaks.length ? breaks[0].price : null;
+          const stock = dkPart.QuantityAvailable ?? dkPart.quantityAvailable ?? 0;
+          const url = dkPart.ProductUrl || dkPart.productUrl
+            || `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(partNumber)}`;
+          const rate = await getUsdSgdRate();
+          const priceSgd = priceUsd != null ? Math.round(priceUsd * rate * 10000) / 10000 : null;
+          results.push({ dist:'DigiKey', priceSgd, url, stock });
+        }
+      }
+    } catch(e) { console.warn('DigiKey BOM fetch failed:', e.message); }
+  }
+
+  if (!results.length) return searchFallback;
+
+  // Best = cheapest among those with a price; fall back to first result with a URL
+  const withPrice = results.filter(r => r.priceSgd != null).sort((a,b) => a.priceSgd - b.priceSgd);
+  const best = withPrice[0] || results.find(r => r.url) || results[0];
+
+  const mouserRes = results.find(r => r.dist === 'Mouser');
+  const dkRes     = results.find(r => r.dist === 'DigiKey');
+
+  // For order link: prefer the cheapest-priced distributor; if no prices, use Mouser
+  const orderDist = withPrice[0]?.dist || mouserRes?.dist || best.dist;
+  const orderUrl  = withPrice[0]?.url  || mouserRes?.url  || best.url;
+
+  return {
+    priceSgd:       best.priceSgd,
+    dist:           orderDist,
+    url:            orderUrl,
+    mouserPriceSgd: mouserRes?.priceSgd ?? null,
+    dkPriceSgd:     dkRes?.priceSgd ?? null,
+    mouserUrl:      mouserRes?.url ?? `https://www.mouser.sg/c/?q=${encodeURIComponent(partNumber)}`,
+    dkUrl:          dkRes?.url ?? `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(partNumber)}`,
+  };
+}
+
+// ── BOM PART PRICE FETCH (for UI DOM rendering) ────────────
+async function fetchBomPartPrice(partNumber, idx) {
+  const priceCell = document.getElementById(`bomrec_price_${idx}`);
+  const orderCell = document.getElementById(`bomrec_order_${idx}`);
+  if (!priceCell) return;
+
+  const results = []; // {dist, price, url, stock}
+
+  try {
+    // ── MOUSER ─────────────────────────────────────────────
+    if (cfg.mouserKey) {
+      try {
+        const mResp = await fetch(`https://api.mouser.com/api/v1/search/keyword?apiKey=${cfg.mouserKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ SearchByKeywordRequest: { keyword: partNumber, records: 1, startingRecord: 0, searchOptions: 'InStock', searchWithSPNsFirst: 'N' } })
+        });
+        const mData = await mResp.json();
+        const mPart = (mData?.SearchResults?.Parts || [])[0];
+        if (mPart) {
+          const breaks = (mPart.PriceBreaks || []).map(pb => parseFloat((pb.Price||'0').replace(/[^0-9.]/g,'')));
+          const minPrice = breaks.filter(p => p > 0).reduce((a,b) => Math.min(a,b), Infinity);
+          const stock = parseInt((mPart.Availability||'').replace(/[^0-9]/g,'')||'0');
+          const url = mPart.ProductDetailUrl
+            ? (mPart.ProductDetailUrl.startsWith('http') ? mPart.ProductDetailUrl : 'https://www.mouser.sg'+mPart.ProductDetailUrl)
+            : `https://www.mouser.sg/c/?q=${encodeURIComponent(partNumber)}`;
+          if (minPrice < Infinity && stock > 0) results.push({ dist:'Mouser', price:minPrice, url, stock });
+        }
+      } catch(e) { /* skip mouser error */ }
+    }
+
+    // ── DIGIKEY ────────────────────────────────────────────
+    if (cfg.dkClientId && cfg.dkSecret) {
+      try {
+        const tokenResp = await fetch('https://api.digikey.com/v1/oauth2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `grant_type=client_credentials&client_id=${encodeURIComponent(cfg.dkClientId)}&client_secret=${encodeURIComponent(cfg.dkSecret)}`
+        });
+        const { access_token: token } = await tokenResp.json();
+        if (token) {
+          const dkResp = await fetch('https://api.digikey.com/products/v4/search/keyword', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'X-DIGIKEY-Client-Id': cfg.dkClientId,
+              'X-DIGIKEY-Locale-Site': 'US', 'X-DIGIKEY-Locale-Currency': 'USD',
+              'X-DIGIKEY-Locale-Language': 'en', 'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ keywords: partNumber, limit: 5, offset: 0, requestedQuantity: 1 })
+          });
+          if (dkResp.ok) {
+            const dkData = await dkResp.json();
+            const products = dkData?.Products || dkData?.products || [];
+            const dkPart = products.find(p =>
+              (p.ManufacturerProductNumber||p.manufacturerProductNumber||'').toUpperCase() === partNumber.toUpperCase()
+            ) || products[0];
+            if (dkPart) {
+              const pricing = dkPart.StandardPricing || dkPart.standardPricing || [];
+              const prices = pricing.map(pb => pb.UnitPrice || pb.unitPrice || 0).filter(p => p > 0);
+              const minPrice = prices.length ? Math.min(...prices) : 0;
+              const stock = dkPart.QuantityAvailable ?? dkPart.quantityAvailable ?? 0;
+              const url = dkPart.ProductUrl || dkPart.productUrl || `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(partNumber)}`;
+              if (minPrice > 0 && stock > 0) results.push({ dist:'DigiKey', price:minPrice, url, stock });
+            }
+          }
+        }
+      } catch(e) { /* skip digikey error */ }
+    }
+  } catch(e) { /* outer guard */ }
+
+  // ── RENDER ─────────────────────────────────────────────
+  if (!priceCell) return;
+
+  const noKeys = !cfg.mouserKey && !cfg.dkClientId;
+  if (!results.length) {
+    priceCell.innerHTML = noKeys
+      ? `<span style="font-size:11px;color:var(--muted)">Set API keys in Settings</span>`
+      : `<span style="font-size:11px;color:var(--muted)">No price / out of stock</span>`;
+    orderCell.innerHTML = `<a href="https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(partNumber)}" target="_blank" rel="noopener" style="display:inline-block;padding:5px 12px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;font-family:var(--sans)">Search ↗</a>`;
+    return;
+  }
+
+  results.sort((a,b) => a.price - b.price);
+  const best = results[0];
+  const second = results[1];
+  const distColor = best.dist === 'DigiKey' ? '#1d4ed8' : '#15803d';
+  const distBg    = best.dist === 'DigiKey' ? '#eff6ff' : '#f0fdf4';
+
+  priceCell.innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px">
+      <span style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--success)">$${best.price.toFixed(4)}</span>
+      <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:${distBg};color:${distColor};border:1px solid ${distColor}40">${best.dist}</span>
+    </div>
+    <div style="font-size:10px;color:var(--muted)">${best.stock.toLocaleString()} in stock</div>
+    ${second ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${second.dist}: $${second.price.toFixed(4)}</div>` : ''}`;
+
+  orderCell.innerHTML = `<a href="${escHtml(best.url)}" target="_blank" rel="noopener"
+    style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:var(--accent);color:#fff;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;font-family:var(--sans);white-space:nowrap">
+    Order @ ${best.dist} ↗</a>`;
+}
+
+
 function extractValueFromText(text) {
-  const s = String(text||'').toUpperCase();
-  // Match: number + unit (e.g. 220PF, 10K, 100NF, 4.7UF, 1M, 47R, 100UH)
-  const m = s.match(/\b(\d+\.?\d*\s*(?:PF|NF|UF|MF|OHM|MHZ|KHZ|UH|NH|MH))\b|\b(\d+\.?\d*\s*[KMRG])\b/);
-  if (m) return (m[1]||m[2]).replace(/\s+/g,'');
+  const s = String(text||'').toUpperCase()
+    .replace(/Ω/g, 'OHM')
+    .replace(/(\d)\.(\d)/g, '$1_$2')
+    .replace(/[^A-Z0-9_.]/g, ' ')
+    .replace(/_/g, '.')
+    .replace(/\s+/g, ' ');
+  const cap = s.match(/(?:^|\s)(\d+\.?\d*)\s*(PF|NF|UF|MF|UH|NH|MH)(?:\s|$)/);
+  if (cap) return cap[1] + cap[2];
+  const res = s.match(/(?:^|\s)(\d+\.?\d*)\s*(K|M|R|OHM)(?:\s|$)/);
+  if (res) return res[1] + res[2];
   return '';
 }
 
-function getBomRecommendations(bомRow, mapping, sheetRows) {
-  // Extract footprint and value from the BOM row's description column only
-  const src = [
-    mapping.Description ? (bомRow[mapping.Description]||'') : '',
-    mapping.MfrPN ? (bомRow[mapping.MfrPN]||'') : ''
-  ].join(' ');
+function extractFootprintFromText(text) {
+  // Replace separators with spaces, then normalize C0603→0603, R0402→0402
+  const s = String(text||'').toUpperCase()
+    .replace(/[^A-Z0-9]/g,' ')
+    .replace(/\s+/g,' ')
+    .replace(/\b[CR](0[24][05][12368]0?)\b/g,'$1');
+  const fps = [
+    'C0201','C0402','C0603','C0805','C1206','C1210','C1812',
+    'R0201','R0402','R0603','R0805','R1206','R1210','R1812',
+    '0201','0402','0603','0805','1206','1210','1812','2220','2512',
+    'SOT23','SOT323','SOT363','SOT523','SOT223','SOT89',
+    'SOD123','SOD323','SOD523','SOD923',
+    'SC70','SC88','SC89',
+    'SMA','SMB','SMC','DO214AA','DO214AC','DO214AB',
+    'SOIC8','SOIC14','SOIC16','SOIC20','SOIC28',
+    'TSSOP8','TSSOP14','TSSOP16','TSSOP20','TSSOP28',
+    'MSOP8','MSOP10','MSOP16',
+    'QFN16','QFN20','QFN24','QFN28','QFN32','QFN48','QFN64',
+    'QFP32','QFP44','QFP48','QFP64','QFP100','QFP128',
+    'DFN6','DFN8','DFN10',
+    'TO92','TO220','TO252','TO263','DPAK',
+    'DIP8','DIP14','DIP16','DIP28','DIP40',
+    'DO35','DO41',
+  ];
+  for (const fp of fps) {
+    if (s.includes(fp.replace(/-/g,''))) return fp;
+  }
+  const m = s.match(/\b(0201|0402|0603|0805|1206|1210|1812|2220|2512)\b/);
+  if (m) return m[1];
+  return '';
+}
 
-  const targetFP  = extractFootprintFromText(src);
-  const targetVal = extractValueFromText(src);
+function normalizeCapValue(v) {
+  const s = String(v||'').toUpperCase().replace(/\s+/g,'');
+  const capM = s.match(/^(\d+\.?\d*)(PF|NF|UF|MF|UH|NH|MH)$/);
+  if (capM) {
+    const n = parseFloat(capM[1]), unit = capM[2];
+    if (unit==='PF') return 'CAP:' + Math.round(n);
+    if (unit==='NF') return 'CAP:' + Math.round(n * 1000);
+    if (unit==='UF') return 'CAP:' + Math.round(n * 1000000);
+    if (unit==='MF') return 'CAP:' + Math.round(n * 1000000000);
+    if (unit==='UH') return 'IND:' + Math.round(n * 1000);
+    if (unit==='NH') return 'IND:' + Math.round(n);
+    if (unit==='MH') return 'IND:' + Math.round(n * 1000000);
+  }
+  const resM = s.match(/^(\d+\.?\d*)(K|M|R|OHM)$/);
+  if (resM) {
+    const n = parseFloat(resM[1]), unit = resM[2];
+    if (unit==='K') return 'RES:' + Math.round(n * 1000);
+    if (unit==='M') return 'RES:' + Math.round(n * 1000000);
+    return 'RES:' + Math.round(n);
+  }
+  return s;
+}
+function getBomRecommendations(bomRow, mapping, sheetRows) {
+  const footprintCol = (mapping.Footprint ? bomRow[mapping.Footprint]||'' : '')
+    || bomRow['Footprint'] || bomRow['footprint'] || bomRow['FOOTPRINT'] || '';
+  const valueCol = (mapping.Value ? bomRow[mapping.Value]||'' : '')
+    || bomRow['Value'] || bomRow['value'] || bomRow['VALUE'] || '';
+  const commentCol = bomRow['Comment'] || bomRow['comment'] || bomRow['COMMENT'] || '';
+  const descCol = mapping.Description ? (bomRow[mapping.Description]||'') : '';
+
+  const extractSrc = [footprintCol, valueCol, commentCol, descCol].filter(Boolean).join(' ');
+  const targetFP  = extractFootprintFromText(extractSrc);
+  const targetVal = extractValueFromText(extractSrc);
 
   if (!targetFP && !targetVal) return [];
 
+  const ownMpn = (mapping.MfrPN ? String(bomRow[mapping.MfrPN]||'') : '').trim().toUpperCase();
+  const normFP = s => s.replace(/-/g,'').replace(/^[CR]/,'');
+
   const scored = [];
   sheetRows.slice(1).forEach((r, i) => {
-    const desc = String(r[3]||'');
-    const fp  = extractFootprintFromText(desc);
-    const val = extractValueFromText(desc);
+    if (ownMpn && String(r[2]||'').trim().toUpperCase() === ownMpn) return;
+    const invSrc = [r[2]||'', r[3]||''].join(' ');
+    const fp  = extractFootprintFromText(invSrc);
+    const val = extractValueFromText(invSrc);
     const loc = getEffectiveLocation(r, i+2);
-    if (!loc || loc === String(r[5]||'').trim()) return; // skip if no slot info
+    if (!loc) return;
+    const fpMatch  = targetFP && fp && normFP(fp) === normFP(targetFP);
+    const valMatch = targetVal && val && normalizeCapValue(val) === normalizeCapValue(targetVal);
     let score = 0;
-    if (targetFP  && fp  && fp.includes(targetFP))  score += 2;
-    if (targetVal && val && (val === targetVal || val.startsWith(targetVal) || targetVal.startsWith(val))) score += 1;
-    if (score > 0) scored.push({ loc, score });
+    if (fpMatch)  score += 2;
+    if (valMatch) score += 1;
+    if (score < 2) return; // require at least footprint match
+    scored.push({ loc, score, mpn: String(r[2]||''), desc: String(r[3]||'') });
   });
 
   scored.sort((a,b) => b.score - a.score);
   const seen = new Set(), results = [];
   for (const item of scored) {
-    if (!seen.has(item.loc) && results.length < 3) { seen.add(item.loc); results.push(item.loc); }
+    if (!seen.has(item.loc)) {
+      seen.add(item.loc);
+      results.push({ loc: item.loc, score: item.score, mpn: item.mpn, desc: item.desc });
+    }
+    if (results.length >= 3) break;
   }
-  return results;
+  return results; // array of {loc, score, mpn, desc}
 }
 
 </script>
